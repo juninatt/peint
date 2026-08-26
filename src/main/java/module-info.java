@@ -17,4 +17,6 @@ module se.pbt.peint {
     exports se.pbt.peint;
     exports se.pbt.peint.canvas;
     opens se.pbt.peint.canvas to javafx.fxml;
+    exports se.pbt.peint.controller;
+    opens se.pbt.peint.controller to javafx.fxml;
 }

@@ -7,7 +7,7 @@
 <?import javafx.scene.layout.BorderPane?>
 
 <?import javafx.scene.control.ColorPicker?>
-<BorderPane fx:id="rootPane" xmlns:fx="http://javafx.com/fxml" fx:controller="se.pbt.peint.PeintController">
+<BorderPane fx:id="rootPane" xmlns:fx="http://javafx.com/fxml" fx:controller="se.pbt.peint.controller.PeintController">
     <!-- Toolbar -->
     <top>
         <ToolBar fx:id="toolBar">

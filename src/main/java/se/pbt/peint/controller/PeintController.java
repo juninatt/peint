@@ -1,4 +1,4 @@
-package se.pbt.peint;
+package se.pbt.peint.controller;
 
 import javafx.concurrent.Task;
 import javafx.embed.swing.SwingFXUtils;
@@ -10,6 +10,7 @@ import javafx.scene.image.WritableImage;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.paint.Color;
 import javafx.stage.FileChooser;
+import se.pbt.peint.ToolbarManager;
 import se.pbt.peint.canvas.CanvasManager;
 import se.pbt.peint.support.BackgroundTasks;
 import se.pbt.peint.support.ImageFileService;
