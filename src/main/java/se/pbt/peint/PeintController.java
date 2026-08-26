@@ -1,5 +1,6 @@
 package se.pbt.peint;
 
+import javafx.concurrent.Task;
 import javafx.embed.swing.SwingFXUtils;
 import javafx.fxml.FXML;
 import javafx.scene.canvas.Canvas;
@@ -9,9 +10,9 @@ import javafx.scene.image.WritableImage;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.paint.Color;
 import javafx.stage.FileChooser;
-import se.pbt.peint.CanvasManager;
+import se.pbt.peint.canvas.CanvasManager;
+import se.pbt.peint.io.ImageFileService;
 
-import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
@@ -38,6 +39,7 @@ public class PeintController {
 
     CanvasManager canvasManager;
     ToolbarManager toolbarManager;
+    final ImageFileService imageFileService = new ImageFileService();
 
     /**
      * Initializes the controller and sets up managers for canvas and toolbar interactions.
@@ -66,27 +68,35 @@ public class PeintController {
                 new FileChooser.ExtensionFilter("BMP Files", "*.bmp")
         );
 
-        File saveFile = fileChooser.showSaveDialog(null);
-        if (saveFile != null) {
-            try {
-                // Capture the canvas content as an image
-                WritableImage writableImage = new WritableImage((int) canvas.getWidth(), (int) canvas.getHeight());
-                canvas.snapshot(null, writableImage);
-
-                // Determine the format based on file extension
-                String fileExtension = getFileExtension(saveFile.getName());
-                if (fileExtension == null) {
-                    System.err.println("Unsupported file extension");
-                    return;
-                }
-
-                // Save the image using ImageIO
-                BufferedImage bufferedImage = SwingFXUtils.fromFXImage(writableImage, null);
-                ImageIO.write(bufferedImage, fileExtension, saveFile);
-            } catch (IOException e) {
-                System.err.println("Failed to save image: " + e.getMessage());
-            }
+        File saveFile = fileChooser.showSaveDialog(canvas.getScene().getWindow());
+        if (saveFile == null) {
+            return;
         }
+
+        String fileExtension = getFileExtension(saveFile.getName());
+        if (fileExtension == null) {
+            System.err.println("Unsupported file extension");
+            return;
+        }
+
+        // Capture the canvas content while still on the FX Application Thread,
+        // since Canvas can only be snapshotted there. Only the actual disk
+        // write is moved to a background thread below.
+        WritableImage writableImage = new WritableImage((int) canvas.getWidth(), (int) canvas.getHeight());
+        canvas.snapshot(null, writableImage);
+        BufferedImage bufferedImage = SwingFXUtils.fromFXImage(writableImage, null);
+
+        Task<Void> saveTask = new Task<>() {
+            @Override
+            protected Void call() throws IOException {
+                imageFileService.save(saveFile, bufferedImage, fileExtension);
+                return null;
+            }
+        };
+        saveTask.setOnFailed(event ->
+                System.err.println("Failed to save image: " + saveTask.getException().getMessage()));
+
+        runInBackground(saveTask, "peint-image-save");
     }
 
     /**
@@ -101,21 +111,37 @@ public class PeintController {
                 new FileChooser.ExtensionFilter("Image Files", "*.png", "*.jpg", "*.jpeg", "*.bmp")
         );
 
-        File selectedFile = fileChooser.showOpenDialog(null);
-        if (selectedFile != null) {
-            try {
-                // Read the selected file as an image
-                BufferedImage image = ImageIO.read(selectedFile);
-
-                if (image != null) {
-                    canvasManager.loadImage(image); // Draw the image on the canvas
-                } else {
-                    System.err.println("Invalid image file: " + selectedFile.getName());
-                }
-            } catch (IOException e) {
-                System.err.println("Failed to load image: " + e.getMessage());
-            }
+        File selectedFile = fileChooser.showOpenDialog(canvas.getScene().getWindow());
+        if (selectedFile == null) {
+            return;
         }
+
+        Task<BufferedImage> loadTask = getBufferedImageTask(selectedFile);
+
+        runInBackground(loadTask, "peint-image-load");
+    }
+
+    private Task<BufferedImage> getBufferedImageTask(File selectedFile) {
+
+        Task<BufferedImage> loadTask = new Task<>() {
+            @Override
+            protected BufferedImage call() throws IOException {
+                return imageFileService.load(selectedFile);
+            }
+        };
+
+        loadTask.setOnSucceeded(event -> {
+            BufferedImage image = loadTask.getValue();
+            if (image != null) {
+                canvasManager.loadImage(image); // Draw the image on the canvas
+            } else {
+                System.err.println("Invalid image file: " + selectedFile.getName());
+            }
+        });
+
+        loadTask.setOnFailed(event ->
+                System.err.println("Failed to load image: " + loadTask.getException().getMessage()));
+        return loadTask;
     }
 
     /**
@@ -178,6 +204,16 @@ public class PeintController {
     void resetCanvasEvents() {
         canvas.setOnMouseClicked(null);
         canvasManager.enableDrawingMode();
+    }
+
+    /**
+     * Runs the given task on a new daemon background thread, keeping file I/O
+     * off the JavaFX Application Thread so the UI stays responsive.
+     */
+    private void runInBackground(Task<?> task, String threadName) {
+        Thread thread = new Thread(task, threadName);
+        thread.setDaemon(true);
+        thread.start();
     }
 
     /**
