@@ -24,19 +24,19 @@ import java.io.IOException;
 public class PeintController {
 
     @FXML
-    private Canvas canvas;
+    Canvas canvas;
 
     @FXML
-    private BorderPane rootPane;
+    BorderPane rootPane;
 
     @FXML
-    private ToolBar toolBar;
+    ToolBar toolBar;
 
     @FXML
-    private ColorPicker colorPicker;
+    ColorPicker colorPicker;
 
-    private CanvasManager canvasManager;
-    private ToolbarManager toolbarManager;
+    CanvasManager canvasManager;
+    ToolbarManager toolbarManager;
 
     /**
      * Initializes the controller and sets up managers for canvas and toolbar interactions.
@@ -56,7 +56,7 @@ public class PeintController {
      * ensuring compatibility and ease of selection for the user.</p>
      */
     @FXML
-    private void onSave() {
+    void onSave() {
         FileChooser fileChooser = new FileChooser();
         fileChooser.setTitle("Save Canvas As Image");
         fileChooser.getExtensionFilters().addAll(
@@ -92,7 +92,7 @@ public class PeintController {
      * Handles the "Load" action, allowing the user to load an image onto the canvas.
      */
     @FXML
-    private void onLoad() {
+    void onLoad() {
         // Open FileChooser for image selection
         FileChooser fileChooser = new FileChooser();
         fileChooser.setTitle("Open Image File");
@@ -121,7 +121,7 @@ public class PeintController {
      * Undoes the last action on the canvas.
      */
     @FXML
-    private void onUndo() {
+    void onUndo() {
         canvasManager.undo();
     }
 
@@ -129,15 +129,22 @@ public class PeintController {
      * Redoes the last undone action on the canvas.
      */
     @FXML
-    private void onRedo() {
+    void onRedo() {
         canvasManager.redo();
     }
 
     /**
      * Activates the bucket fill tool, allowing the user to fill an area of the canvas with a color.
+     *
+     * <p>Freehand drawing is temporarily disabled while the fill tool is armed, so that a
+     * press-and-drag doesn't also draw a stray line. The tool fires once: after the next
+     * click on the canvas, it fills the clicked area and then hands control back to the
+     * pencil by re-enabling drawing mode and removing its own click handler.</p>
      */
     @FXML
-    private void onBucketFill() {
+    void onBucketFill() {
+        canvasManager.disableDrawingMode();
+
         canvas.setOnMouseClicked(event -> {
             double x = event.getX();
             double y = event.getY();
@@ -150,7 +157,7 @@ public class PeintController {
      * Toggles the toolbar's position between the top and left of the window.
      */
     @FXML
-    private void onToggleToolbarPosition() {
+    void onToggleToolbarPosition() {
         toolbarManager.togglePosition();
     }
 
@@ -158,23 +165,24 @@ public class PeintController {
      * Clears the canvas by removing all drawings.
      */
     @FXML
-    private void onClearCanvas() {
+    void onClearCanvas() {
         canvasManager.clearCanvas();
     }
 
     /**
-     * Resets the canvas to its default state by disabling mouse events.
+     * Restores the canvas to its default state after a one-shot tool (such as bucket
+     * fill) has finished: removes that tool's click handler and re-enables freehand
+     * drawing so the pencil works again.
      */
-    private void resetCanvasEvents() {
-        canvas.setOnMousePressed(null);
-        canvas.setOnMouseDragged(null);
-        canvas.setOnMouseReleased(null);
+    void resetCanvasEvents() {
+        canvas.setOnMouseClicked(null);
+        canvasManager.enableDrawingMode();
     }
 
     /**
      * Extracts the file extension from a given file name.
      */
-    private String getFileExtension(String fileName) {
+    String getFileExtension(String fileName) {
         int dotIndex = fileName.lastIndexOf('.');
         return (dotIndex > 0 && dotIndex < fileName.length() - 1) ? fileName.substring(dotIndex + 1).toLowerCase() : null;
     }

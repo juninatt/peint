@@ -36,18 +36,58 @@ public class CanvasManager {
         this.canvas = canvas;
         this.gc = canvas.getGraphicsContext2D();
 
-        canvas.widthProperty().bind(parent.widthProperty());
-        canvas.heightProperty().bind(parent.heightProperty());
+        parent.widthProperty().addListener((observable, oldWidth, newWidth) ->
+                resizeCanvas(newWidth.doubleValue(), canvas.getHeight()));
+        parent.heightProperty().addListener((observable, oldHeight, newHeight) ->
+                resizeCanvas(canvas.getWidth(), newHeight.doubleValue()));
 
-        setupDrawing();
+        enableDrawingMode();
     }
 
     /**
-     * Sets up mouse event handlers for drawing on the canvas.
+     * Resizes the canvas to match the parent layout, preserving its current
+     * drawing in the process. [BUGG 2-FIX]
      *
-     * <p>Pressing the mouse starts a new drawing path, and dragging continues the path.</p>
+     * <p>Changing a {@link Canvas}'s width or height clears its pixel content, so
+     * simply binding the size properties (as this class used to) erases the
+     * drawing every time the window is resized. This method instead snapshots
+     * the current content first, applies the new size, and redraws the
+     * snapshot at the top-left corner, so existing drawings survive a resize
+     * instead of being wiped out.</p>
+     *
+     * @param newWidth the new canvas width
+     * @param newHeight the new canvas height
      */
-    private void setupDrawing() {
+    private void resizeCanvas(double newWidth, double newHeight) {
+        if (newWidth <= 0 || newHeight <= 0) {
+            return;
+        }
+
+        double previousWidth = canvas.getWidth();
+        double previousHeight = canvas.getHeight();
+
+        if (previousWidth > 0 && previousHeight > 0) {
+            WritableImage snapshot = new WritableImage((int) previousWidth, (int) previousHeight);
+            canvas.snapshot(null, snapshot);
+
+            canvas.setWidth(newWidth);
+            canvas.setHeight(newHeight);
+
+            gc.drawImage(snapshot, 0, 0);
+        } else {
+            canvas.setWidth(newWidth);
+            canvas.setHeight(newHeight);
+        }
+    }
+
+    /**
+     * Enables freehand drawing on the canvas. [BUGG 1-FIX: publik + återanropningsbar]
+     *
+     * <p>Pressing the mouse starts a new drawing path, and dragging continues the path.
+     * Safe to call repeatedly, e.g. to restore drawing mode after another tool
+     * (such as bucket fill) has temporarily taken over the canvas's mouse handlers.</p>
+     */
+    public void enableDrawingMode() {
         canvas.setOnMousePressed(event -> {
             saveState();
             gc.setStroke(drawingColor);
@@ -63,6 +103,16 @@ public class CanvasManager {
         });
     }
 
+    /**
+     * Disables freehand drawing on the canvas by removing its press/drag handlers. [BUGG 1-FIX: ny metod]
+     *
+     * <p>Used while another tool (such as bucket fill) is temporarily armed and
+     * waiting for a click, so that a press-and-drag doesn't also draw a stray line.</p>
+     */
+    public void disableDrawingMode() {
+        canvas.setOnMousePressed(null);
+        canvas.setOnMouseDragged(null);
+    }
 
     /**
      * Undoes the last action on the canvas by popping the last state from the undo stack.
