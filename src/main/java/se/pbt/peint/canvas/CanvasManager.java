@@ -1,4 +1,4 @@
-package se.pbt.peint;
+package se.pbt.peint.canvas;
 
 import javafx.embed.swing.SwingFXUtils;
 import javafx.scene.canvas.Canvas;
@@ -8,8 +8,6 @@ import javafx.scene.image.PixelWriter;
 import javafx.scene.image.WritableImage;
 import javafx.scene.layout.Region;
 import javafx.scene.paint.Color;
-import se.pbt.peint.canvas.FloodFillProcessor;
-import se.pbt.peint.canvas.History;
 
 import java.awt.image.BufferedImage;
 
