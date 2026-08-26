@@ -9,6 +9,7 @@ import javafx.scene.image.WritableImage;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.paint.Color;
 import javafx.stage.FileChooser;
+import se.pbt.peint.CanvasManager;
 
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;

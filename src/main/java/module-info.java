@@ -15,4 +15,6 @@ module se.pbt.peint {
     // Module visibility
     opens se.pbt.peint to javafx.fxml;
     exports se.pbt.peint;
+    exports se.pbt.peint.canvas;
+    opens se.pbt.peint.canvas to javafx.fxml;
 }

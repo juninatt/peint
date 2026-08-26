@@ -8,9 +8,10 @@ import javafx.scene.image.PixelWriter;
 import javafx.scene.image.WritableImage;
 import javafx.scene.layout.Region;
 import javafx.scene.paint.Color;
+import se.pbt.peint.canvas.FloodFillProcessor;
+import se.pbt.peint.canvas.History;
 
 import java.awt.image.BufferedImage;
-import java.util.Stack;
 
 /**
  * Manages the canvas, providing functionality for drawing, undo/redo, and flood fill operations.
@@ -18,11 +19,10 @@ import java.util.Stack;
  * <p>This class encapsulates all logic related to canvas manipulation and state management.</p>
  */
 public class CanvasManager {
+
     private final Canvas canvas;
     private final GraphicsContext gc;
-
-    private final Stack<BufferedImage> undoStack = new Stack<>();
-    private final Stack<BufferedImage> redoStack = new Stack<>();
+    private final History history = new History();
 
     private Color drawingColor;
 
@@ -46,7 +46,7 @@ public class CanvasManager {
 
     /**
      * Resizes the canvas to match the parent layout, preserving its current
-     * drawing in the process. [BUGG 2-FIX]
+     * drawing in the process.
      *
      * <p>Changing a {@link Canvas}'s width or height clears its pixel content, so
      * simply binding the size properties (as this class used to) erases the
@@ -81,7 +81,7 @@ public class CanvasManager {
     }
 
     /**
-     * Enables freehand drawing on the canvas. [BUGG 1-FIX: publik + återanropningsbar]
+     * Enables freehand drawing on the canvas.
      *
      * <p>Pressing the mouse starts a new drawing path, and dragging continues the path.
      * Safe to call repeatedly, e.g. to restore drawing mode after another tool
@@ -104,7 +104,7 @@ public class CanvasManager {
     }
 
     /**
-     * Disables freehand drawing on the canvas by removing its press/drag handlers. [BUGG 1-FIX: ny metod]
+     * Disables freehand drawing on the canvas by removing its press/drag handlers.
      *
      * <p>Used while another tool (such as bucket fill) is temporarily armed and
      * waiting for a click, so that a press-and-drag doesn't also draw a stray line.</p>
@@ -115,25 +115,31 @@ public class CanvasManager {
     }
 
     /**
-     * Undoes the last action on the canvas by popping the last state from the undo stack.
+     * Undoes the last action on the canvas by moving back to the previous
+     * state recorded in the {@link History}.
      */
     public void undo() {
-        if (!undoStack.isEmpty()) {
-            BufferedImage lastState = undoStack.pop();
-            redoStack.push(SwingFXUtils.fromFXImage(canvas.snapshot(null, null), null));
-            gc.drawImage(SwingFXUtils.toFXImage(lastState, null), 0, 0);
+        if (!history.canUndo()) {
+            return;
         }
+
+        BufferedImage currentState = SwingFXUtils.fromFXImage(canvas.snapshot(null, null), null);
+        BufferedImage previousState = history.undo(currentState);
+        gc.drawImage(SwingFXUtils.toFXImage(previousState, null), 0, 0);
     }
 
     /**
-     * Redoes the last undone action on the canvas by popping the next state from the redo stack.
+     * Redoes the last undone action on the canvas by reapplying the next
+     * state recorded in the {@link History}.
      */
     public void redo() {
-        if (!redoStack.isEmpty()) {
-            BufferedImage nextState = redoStack.pop();
-            undoStack.push(SwingFXUtils.fromFXImage(canvas.snapshot(null, null), null));
-            gc.drawImage(SwingFXUtils.toFXImage(nextState, null), 0, 0);
+        if (!history.canRedo()) {
+            return;
         }
+
+        BufferedImage currentState = SwingFXUtils.fromFXImage(canvas.snapshot(null, null), null);
+        BufferedImage nextState = history.redo(currentState);
+        gc.drawImage(SwingFXUtils.toFXImage(nextState, null), 0, 0);
     }
 
     /**
@@ -174,15 +180,14 @@ public class CanvasManager {
     }
 
     /**
-     * Saves the current state of the canvas for undo functionality.
-     *
-     * <p>Clears the redo stack to ensure consistency after a new action.</p>
+     * Records the current state of the canvas in the {@link History} so it
+     * can later be undone.
      */
     private void saveState() {
         WritableImage snapshot = new WritableImage((int) canvas.getWidth(), (int) canvas.getHeight());
         canvas.snapshot(null, snapshot);
-        undoStack.push(SwingFXUtils.fromFXImage(snapshot, null));
-        redoStack.clear();
+
+        history.record(SwingFXUtils.fromFXImage(snapshot, null));
     }
 
     /**

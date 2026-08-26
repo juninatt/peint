@@ -1,4 +1,4 @@
-package se.pbt.peint;
+package se.pbt.peint.canvas;
 
 import javafx.scene.image.PixelReader;
 import javafx.scene.image.PixelWriter;
