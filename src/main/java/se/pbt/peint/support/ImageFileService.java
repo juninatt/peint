@@ -1,4 +1,4 @@
-package se.pbt.peint.io;
+package se.pbt.peint.support;
 
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
@@ -37,5 +37,18 @@ public class ImageFileService {
      */
     public void save(File file, BufferedImage image, String format) throws IOException {
         ImageIO.write(image, format, file);
+    }
+
+    /**
+     * Extracts the file extension from a file name, so it can be used as an
+     * image format for {@link #save(File, BufferedImage, String)}.
+     *
+     * @param fileName the file name to inspect
+     * @return the lowercased extension without its leading dot, or
+     *         {@code null} if the file name has none
+     */
+    public String getFileExtension(String fileName) {
+        int dotIndex = fileName.lastIndexOf('.');
+        return (dotIndex > 0 && dotIndex < fileName.length() - 1) ? fileName.substring(dotIndex + 1).toLowerCase() : null;
     }
 }

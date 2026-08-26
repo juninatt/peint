@@ -11,7 +11,8 @@ import javafx.scene.layout.BorderPane;
 import javafx.scene.paint.Color;
 import javafx.stage.FileChooser;
 import se.pbt.peint.canvas.CanvasManager;
-import se.pbt.peint.io.ImageFileService;
+import se.pbt.peint.support.BackgroundTasks;
+import se.pbt.peint.support.ImageFileService;
 
 import java.awt.image.BufferedImage;
 import java.io.File;
@@ -73,7 +74,7 @@ public class PeintController {
             return;
         }
 
-        String fileExtension = getFileExtension(saveFile.getName());
+        String fileExtension = imageFileService.getFileExtension(saveFile.getName());
         if (fileExtension == null) {
             System.err.println("Unsupported file extension");
             return;
@@ -96,7 +97,7 @@ public class PeintController {
         saveTask.setOnFailed(event ->
                 System.err.println("Failed to save image: " + saveTask.getException().getMessage()));
 
-        runInBackground(saveTask, "peint-image-save");
+        BackgroundTasks.run(saveTask, "peint-image-save");
     }
 
     /**
@@ -116,20 +117,12 @@ public class PeintController {
             return;
         }
 
-        Task<BufferedImage> loadTask = getBufferedImageTask(selectedFile);
-
-        runInBackground(loadTask, "peint-image-load");
-    }
-
-    private Task<BufferedImage> getBufferedImageTask(File selectedFile) {
-
         Task<BufferedImage> loadTask = new Task<>() {
             @Override
             protected BufferedImage call() throws IOException {
                 return imageFileService.load(selectedFile);
             }
         };
-
         loadTask.setOnSucceeded(event -> {
             BufferedImage image = loadTask.getValue();
             if (image != null) {
@@ -138,10 +131,10 @@ public class PeintController {
                 System.err.println("Invalid image file: " + selectedFile.getName());
             }
         });
-
         loadTask.setOnFailed(event ->
                 System.err.println("Failed to load image: " + loadTask.getException().getMessage()));
-        return loadTask;
+
+        BackgroundTasks.run(loadTask, "peint-image-load");
     }
 
     /**
@@ -204,23 +197,5 @@ public class PeintController {
     void resetCanvasEvents() {
         canvas.setOnMouseClicked(null);
         canvasManager.enableDrawingMode();
-    }
-
-    /**
-     * Runs the given task on a new daemon background thread, keeping file I/O
-     * off the JavaFX Application Thread so the UI stays responsive.
-     */
-    private void runInBackground(Task<?> task, String threadName) {
-        Thread thread = new Thread(task, threadName);
-        thread.setDaemon(true);
-        thread.start();
-    }
-
-    /**
-     * Extracts the file extension from a given file name.
-     */
-    String getFileExtension(String fileName) {
-        int dotIndex = fileName.lastIndexOf('.');
-        return (dotIndex > 0 && dotIndex < fileName.length() - 1) ? fileName.substring(dotIndex + 1).toLowerCase() : null;
     }
 }
