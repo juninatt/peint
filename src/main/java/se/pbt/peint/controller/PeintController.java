@@ -4,14 +4,15 @@ import javafx.concurrent.Task;
 import javafx.embed.swing.SwingFXUtils;
 import javafx.fxml.FXML;
 import javafx.scene.canvas.Canvas;
+import javafx.scene.control.Button;
 import javafx.scene.control.ColorPicker;
 import javafx.scene.control.ToolBar;
 import javafx.scene.image.WritableImage;
 import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.Pane;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.stage.FileChooser;
-import se.pbt.peint.ToolbarManager;
 import se.pbt.peint.canvas.CanvasManager;
 import se.pbt.peint.support.BackgroundTasks;
 import se.pbt.peint.support.ImageFileService;
@@ -23,8 +24,9 @@ import java.io.IOException;
 /**
  * The main controller for the Peint application.
  *
- * <p>This class handles the application's user interface events, such as saving, loading,
- * and editing the canvas, as well as managing the toolbar and color picker.</p>
+ * <p>Wires the FXML view to {@link CanvasManager}, {@link ToolbarManager},
+ * and {@link ImageFileService}, and handles the UI events those managers
+ * don't own directly (file dialogs, background tasks, the color picker).</p>
  */
 public class PeintController {
 
@@ -35,6 +37,9 @@ public class PeintController {
     BorderPane rootPane;
 
     @FXML
+    Pane canvasContainer;
+
+    @FXML
     VBox topContainer;
 
     @FXML
@@ -42,6 +47,9 @@ public class PeintController {
 
     @FXML
     ColorPicker colorPicker;
+
+    @FXML
+    Button toggleToolbarPositionButton;
 
     CanvasManager canvasManager;
     ToolbarManager toolbarManager;
@@ -51,18 +59,15 @@ public class PeintController {
      * Initializes the controller and sets up managers for canvas and toolbar interactions.
      */
     public void initialize() {
-        canvasManager = new CanvasManager(canvas, rootPane);
-        toolbarManager = new ToolbarManager(toolBar, topContainer, rootPane);
+        canvasManager = new CanvasManager(canvas, canvasContainer);
+        toolbarManager = new ToolbarManager(toolBar, topContainer, rootPane, colorPicker, toggleToolbarPositionButton);
 
         colorPicker.setValue(Color.BLACK);
         colorPicker.setOnAction(event -> canvasManager.setDrawingColor(colorPicker.getValue()));
     }
 
     /**
-     * Handles the "Save" action, allowing the user to save the canvas as an image.
-     *
-     * <p>Displays a file chooser with filters for common formats (PNG, JPEG, BMP),
-     * ensuring compatibility and ease of selection for the user.</p>
+     * Prompts for a destination file and saves the canvas to it as a PNG, JPEG, or BMP.
      */
     @FXML
     void onSave() {
@@ -85,9 +90,8 @@ public class PeintController {
             return;
         }
 
-        // Capture the canvas content while still on the FX Application Thread,
-        // since Canvas can only be snapshotted there. Only the actual disk
-        // write is moved to a background thread below.
+        // Snapshotting the canvas must happen on the FX Application Thread;
+        // only the disk write below is moved to a background thread.
         WritableImage writableImage = new WritableImage((int) canvas.getWidth(), (int) canvas.getHeight());
         canvas.snapshot(null, writableImage);
         BufferedImage bufferedImage = SwingFXUtils.fromFXImage(writableImage, null);
@@ -106,11 +110,10 @@ public class PeintController {
     }
 
     /**
-     * Handles the "Load" action, allowing the user to load an image onto the canvas.
+     * Prompts for an image file and loads it onto the canvas.
      */
     @FXML
     void onLoad() {
-        // Open FileChooser for image selection
         FileChooser fileChooser = new FileChooser();
         fileChooser.setTitle("Open Image File");
         fileChooser.getExtensionFilters().addAll(
@@ -131,7 +134,7 @@ public class PeintController {
         loadTask.setOnSucceeded(event -> {
             BufferedImage image = loadTask.getValue();
             if (image != null) {
-                canvasManager.loadImage(image); // Draw the image on the canvas
+                canvasManager.loadImage(image);
             } else {
                 System.err.println("Invalid image file: " + selectedFile.getName());
             }
@@ -159,12 +162,8 @@ public class PeintController {
     }
 
     /**
-     * Activates the bucket fill tool, allowing the user to fill an area of the canvas with a color.
-     *
-     * <p>Freehand drawing is temporarily disabled while the fill tool is armed, so that a
-     * press-and-drag doesn't also draw a stray line. The tool fires once: after the next
-     * click on the canvas, it fills the clicked area and then hands control back to the
-     * pencil by re-enabling drawing mode and removing its own click handler.</p>
+     * Arms the bucket fill tool: disables freehand drawing and fills the
+     * clicked area on the next canvas click, then restores the pencil.
      */
     @FXML
     void onBucketFill() {
@@ -195,9 +194,8 @@ public class PeintController {
     }
 
     /**
-     * Restores the canvas to its default state after a one-shot tool (such as bucket
-     * fill) has finished: removes that tool's click handler and re-enables freehand
-     * drawing so the pencil works again.
+     * Removes the fill tool's one-shot click handler and re-enables freehand
+     * drawing, once a fill has completed.
      */
     void resetCanvasEvents() {
         canvas.setOnMouseClicked(null);
