@@ -3,10 +3,9 @@ module se.pbt.peint {
     requires javafx.controls;
     requires javafx.fxml;
 
-    // Third-party libraries for enhanced UI and styling
-    requires org.controlsfx.controls;
+    // Icons
     requires org.kordamp.ikonli.javafx;
-    requires org.kordamp.bootstrapfx.core;
+    requires org.kordamp.ikonli.fontawesome5;
 
     // Java and Swing integration
     requires java.desktop;

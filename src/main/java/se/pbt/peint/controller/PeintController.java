@@ -8,6 +8,7 @@ import javafx.scene.control.ColorPicker;
 import javafx.scene.control.ToolBar;
 import javafx.scene.image.WritableImage;
 import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.stage.FileChooser;
 import se.pbt.peint.ToolbarManager;
@@ -34,6 +35,9 @@ public class PeintController {
     BorderPane rootPane;
 
     @FXML
+    VBox topContainer;
+
+    @FXML
     ToolBar toolBar;
 
     @FXML
@@ -48,7 +52,7 @@ public class PeintController {
      */
     public void initialize() {
         canvasManager = new CanvasManager(canvas, rootPane);
-        toolbarManager = new ToolbarManager(toolBar, rootPane);
+        toolbarManager = new ToolbarManager(toolBar, topContainer, rootPane);
 
         colorPicker.setValue(Color.BLACK);
         colorPicker.setOnAction(event -> canvasManager.setDrawingColor(colorPicker.getValue()));
