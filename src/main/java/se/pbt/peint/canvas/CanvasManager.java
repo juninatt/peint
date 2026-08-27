@@ -16,7 +16,7 @@ import java.awt.image.BufferedImage;
  *
  * <p>This class encapsulates all logic related to canvas manipulation and state management.</p>
  */
-public class CanvasManager {
+public final class CanvasManager {
 
     private final Canvas canvas;
     private final GraphicsContext gc;
