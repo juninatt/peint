@@ -91,6 +91,19 @@
                     </execution>
                 </executions>
             </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.2.5</version>
+                <configuration>
+                    <!-- Test classes aren't part of the module (they live in
+                         target/test-classes), so run on the classpath instead. -->
+                    <useModulePath>false</useModulePath>
+                    <!-- Software rendering avoids native crashes in forked test
+                         JVMs on some Windows/graphics-driver combinations. -->
+                    <argLine>-Dprism.order=sw</argLine>
+                </configuration>
+            </plugin>
         </plugins>
     </build>
 </project>

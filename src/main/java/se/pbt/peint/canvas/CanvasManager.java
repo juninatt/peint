@@ -121,7 +121,7 @@ public class CanvasManager {
             return;
         }
 
-        BufferedImage currentState = SwingFXUtils.fromFXImage(canvas.snapshot(null, null), null);
+        BufferedImage currentState = SwingFXUtils.fromFXImage(snapshotCanvas(), null);
         BufferedImage previousState = history.undo(currentState);
         gc.drawImage(SwingFXUtils.toFXImage(previousState, null), 0, 0);
     }
@@ -135,7 +135,7 @@ public class CanvasManager {
             return;
         }
 
-        BufferedImage currentState = SwingFXUtils.fromFXImage(canvas.snapshot(null, null), null);
+        BufferedImage currentState = SwingFXUtils.fromFXImage(snapshotCanvas(), null);
         BufferedImage nextState = history.redo(currentState);
         gc.drawImage(SwingFXUtils.toFXImage(nextState, null), 0, 0);
     }
@@ -159,21 +159,20 @@ public class CanvasManager {
     /**
      * Fills an area on the canvas with a new color using {@link FloodFillProcessor}.
      *
-     * <p>This method captures the current canvas state as an image to access pixel data,
-     * initializes tools for reading and writing pixels, and delegates the flood fill
-     * operation to a dedicated processor.</p>
+     * <p>Takes a single snapshot of the canvas, used both as the flood fill's
+     * pixel source and as the state recorded for undo.</p>
      */
     public void bucketFill(double startX, double startY, Color newColor) {
-        WritableImage writableImage = new WritableImage((int) canvas.getWidth(), (int) canvas.getHeight());
-        canvas.snapshot(null, writableImage);
+        WritableImage snapshot = snapshotCanvas();
 
-        PixelReader pixelReader = writableImage.getPixelReader();
+        PixelReader pixelReader = snapshot.getPixelReader();
         PixelWriter pixelWriter = gc.getPixelWriter();
+
+        history.record(SwingFXUtils.fromFXImage(snapshot, null));
 
         FloodFillProcessor floodFillProcessor = new FloodFillProcessor(
                 pixelReader, pixelWriter, (int) canvas.getWidth(), (int) canvas.getHeight()
         );
-        saveState();
         floodFillProcessor.fill(startX, startY, newColor);
     }
 
@@ -182,10 +181,16 @@ public class CanvasManager {
      * can later be undone.
      */
     private void saveState() {
+        history.record(SwingFXUtils.fromFXImage(snapshotCanvas(), null));
+    }
+
+    /**
+     * Takes a snapshot of the canvas at its current size.
+     */
+    private WritableImage snapshotCanvas() {
         WritableImage snapshot = new WritableImage((int) canvas.getWidth(), (int) canvas.getHeight());
         canvas.snapshot(null, snapshot);
-
-        history.record(SwingFXUtils.fromFXImage(snapshot, null));
+        return snapshot;
     }
 
     /**
