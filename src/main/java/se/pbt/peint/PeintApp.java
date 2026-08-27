@@ -3,7 +3,12 @@ package se.pbt.peint;
 import javafx.application.Application;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Scene;
+import javafx.scene.control.Alert;
 import javafx.stage.Stage;
+
+import java.io.IOException;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * The main entry point for the Peint application.
@@ -13,6 +18,8 @@ import javafx.stage.Stage;
  * and easy to use.</p>
  */
 public class PeintApp extends Application {
+
+    private static final Logger LOGGER = Logger.getLogger(PeintApp.class.getName());
 
     /**
      * Starts the application by loading the main interface and displaying the primary stage.
@@ -27,10 +34,24 @@ public class PeintApp extends Application {
             stage.setTitle("Peint - Your Drawing App");
             stage.setScene(scene);
             stage.show();
-        } catch (Exception e) {
-            System.err.println("Error loading FXML file: " + e.getMessage());
-            e.printStackTrace();
+        } catch (IOException e) {
+            showStartupError(e);
         }
+    }
+
+    /**
+     * Reports a failure to load the application window, both on the console
+     * and in a dialog, since a silently missing window otherwise gives the
+     * user no indication anything went wrong.
+     */
+    private void showStartupError(IOException e) {
+        LOGGER.log(Level.SEVERE, "Failed to load the application window", e);
+
+        Alert alert = new Alert(Alert.AlertType.ERROR);
+        alert.setTitle("Peint failed to start");
+        alert.setHeaderText("Could not load the application window");
+        alert.setContentText(e.getMessage());
+        alert.showAndWait();
     }
 
     /**

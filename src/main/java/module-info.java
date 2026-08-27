@@ -10,6 +10,7 @@ module se.pbt.peint {
     // Java and Swing integration
     requires java.desktop;
     requires javafx.swing;
+    requires java.logging;
 
     // Module visibility
     opens se.pbt.peint to javafx.fxml;
