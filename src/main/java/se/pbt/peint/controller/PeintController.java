@@ -79,16 +79,20 @@ public class PeintController {
                 new FileChooser.ExtensionFilter("BMP Files", "*.bmp")
         );
 
-        File saveFile = fileChooser.showSaveDialog(canvas.getScene().getWindow());
-        if (saveFile == null) {
+        File chosenFile = fileChooser.showSaveDialog(canvas.getScene().getWindow());
+        if (chosenFile == null) {
             return;
         }
 
-        String fileExtension = imageFileService.getFileExtension(saveFile.getName());
-        if (fileExtension == null) {
-            System.err.println("Unsupported file extension");
-            return;
-        }
+        // No extension typed: take it from the filter the user picked, as
+        // the native dialog doesn't add one on every platform.
+        String typedExtension = imageFileService.getFileExtension(chosenFile.getName());
+        String format = typedExtension != null
+                ? typedExtension
+                : defaultExtension(fileChooser.getSelectedExtensionFilter());
+        File targetFile = typedExtension != null
+                ? chosenFile
+                : new File(chosenFile.getParentFile(), chosenFile.getName() + "." + format);
 
         // Snapshotting the canvas must happen on the FX Application Thread;
         // only the disk write below is moved to a background thread.
@@ -99,7 +103,7 @@ public class PeintController {
         Task<Void> saveTask = new Task<>() {
             @Override
             protected Void call() throws IOException {
-                imageFileService.save(saveFile, bufferedImage, fileExtension);
+                imageFileService.save(targetFile, bufferedImage, format);
                 return null;
             }
         };
@@ -107,6 +111,18 @@ public class PeintController {
                 System.err.println("Failed to save image: " + saveTask.getException().getMessage()));
 
         BackgroundTasks.run(saveTask, "peint-image-save");
+    }
+
+    /**
+     * Returns the first extension of the given filter (e.g. {@code "png"} for
+     * {@code "*.png"}), or {@code "png"} if no filter is selected.
+     */
+    static String defaultExtension(FileChooser.ExtensionFilter filter) {
+        if (filter == null || filter.getExtensions().isEmpty()) {
+            return "png";
+        }
+        String pattern = filter.getExtensions().get(0);
+        return pattern.substring(pattern.lastIndexOf('.') + 1).toLowerCase();
     }
 
     /**

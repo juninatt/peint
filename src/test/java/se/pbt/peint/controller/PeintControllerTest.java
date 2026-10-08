@@ -8,6 +8,7 @@ import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
+import javafx.stage.FileChooser;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -67,5 +68,17 @@ class PeintControllerTest {
         FxTestSupport.runAndWait(() -> controller.onBucketFill());
 
         assertNotNull(controller.canvas.getOnMouseClicked());
+    }
+
+    @Test
+    void defaultExtensionTakesTheFiltersFirstExtension() {
+        FileChooser.ExtensionFilter jpeg = new FileChooser.ExtensionFilter("JPEG Files", "*.jpg", "*.jpeg");
+
+        assertEquals("jpg", PeintController.defaultExtension(jpeg));
+    }
+
+    @Test
+    void defaultExtensionFallsBackToPngWithoutAFilter() {
+        assertEquals("png", PeintController.defaultExtension(null));
     }
 }
