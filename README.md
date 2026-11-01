@@ -19,11 +19,18 @@ Peint is a simple paint application built in JavaFX, inspired by classic Paint t
 - **JUnit 5**: For the tests.
 
 
+## Download
+Ready-to-run builds for Windows, Linux and macOS (Apple Silicon) are attached to each
+[release](https://github.com/juninatt/peint/releases). They include their own Java runtime,
+so nothing else needs to be installed. Unpack the archive and run `bin/peint`
+(`bin\peint.bat` on Windows).
+
+
 ## Requirements
-- JDK 17 or later. Maven is not required; the included Maven Wrapper downloads it.
+To build from source: JDK 17 or later. Maven is not required; the included Maven Wrapper downloads it.
 
 
-## Installation and Running
+## Building from Source
 1. Clone this repository.
 2. Run the application:
    ```
