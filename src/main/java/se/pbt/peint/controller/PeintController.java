@@ -4,6 +4,7 @@ import javafx.concurrent.Task;
 import javafx.embed.swing.SwingFXUtils;
 import javafx.fxml.FXML;
 import javafx.scene.canvas.Canvas;
+import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.ColorPicker;
 import javafx.scene.control.ToolBar;
@@ -20,6 +21,8 @@ import se.pbt.peint.support.ImageFileService;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * The main controller for the Peint application.
@@ -29,6 +32,8 @@ import java.io.IOException;
  * don't own directly (file dialogs, background tasks, the color picker).</p>
  */
 public class PeintController {
+
+    private static final Logger LOGGER = Logger.getLogger(PeintController.class.getName());
 
     @FXML
     Canvas canvas;
@@ -94,6 +99,14 @@ public class PeintController {
                 ? chosenFile
                 : new File(chosenFile.getParentFile(), chosenFile.getName() + "." + format);
 
+        saveImage(targetFile, format);
+    }
+
+    /**
+     * Saves the canvas to the given file in the given format on a background
+     * thread, reporting any failure with {@link #showError(String, String)}.
+     */
+    void saveImage(File targetFile, String format) {
         // Snapshotting the canvas must happen on the FX Application Thread;
         // only the disk write below is moved to a background thread.
         WritableImage writableImage = new WritableImage((int) canvas.getWidth(), (int) canvas.getHeight());
@@ -107,8 +120,10 @@ public class PeintController {
                 return null;
             }
         };
-        saveTask.setOnFailed(event ->
-                System.err.println("Failed to save image: " + saveTask.getException().getMessage()));
+        saveTask.setOnFailed(event -> {
+            LOGGER.log(Level.WARNING, "Failed to save image to " + targetFile, saveTask.getException());
+            showError("Could not save " + targetFile.getName(), describe(saveTask.getException()));
+        });
 
         BackgroundTasks.run(saveTask, "peint-image-save");
     }
@@ -141,6 +156,14 @@ public class PeintController {
             return;
         }
 
+        loadImage(selectedFile);
+    }
+
+    /**
+     * Loads the given image file onto the canvas from a background thread,
+     * reporting any failure with {@link #showError(String, String)}.
+     */
+    void loadImage(File selectedFile) {
         Task<BufferedImage> loadTask = new Task<>() {
             @Override
             protected BufferedImage call() throws IOException {
@@ -152,13 +175,40 @@ public class PeintController {
             if (image != null) {
                 canvasManager.loadImage(image);
             } else {
-                System.err.println("Invalid image file: " + selectedFile.getName());
+                LOGGER.warning("Not a readable image file: " + selectedFile);
+                showError("Could not open " + selectedFile.getName(), "The file is not a supported image.");
             }
         });
-        loadTask.setOnFailed(event ->
-                System.err.println("Failed to load image: " + loadTask.getException().getMessage()));
+        loadTask.setOnFailed(event -> {
+            LOGGER.log(Level.WARNING, "Failed to load image from " + selectedFile, loadTask.getException());
+            showError("Could not open " + selectedFile.getName(), describe(loadTask.getException()));
+        });
 
         BackgroundTasks.run(loadTask, "peint-image-load");
+    }
+
+    /**
+     * Tells the user that an operation failed, in an error dialog.
+     *
+     * <p>Failures used to be printed to the console only, so a failed save
+     * looked exactly like a successful one.</p>
+     *
+     * @param header what failed, e.g. "Could not save drawing.png"
+     * @param detail why it failed
+     */
+    void showError(String header, String detail) {
+        Alert alert = new Alert(Alert.AlertType.ERROR);
+        alert.setTitle("Peint");
+        alert.setHeaderText(header);
+        alert.setContentText(detail);
+        alert.showAndWait();
+    }
+
+    /**
+     * Returns a failure's message, or its type when it has no message.
+     */
+    private static String describe(Throwable failure) {
+        return failure.getMessage() != null ? failure.getMessage() : failure.getClass().getSimpleName();
     }
 
     /**
