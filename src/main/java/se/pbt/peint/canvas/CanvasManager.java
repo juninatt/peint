@@ -24,6 +24,10 @@ public final class CanvasManager {
 
     private Color drawingColor;
 
+    // The mouse position the current stroke's next segment starts from.
+    private double lastX;
+    private double lastY;
+
     /**
      * Creates a new CanvasManager to manage the specified canvas and its parent layout.
      *
@@ -81,23 +85,26 @@ public final class CanvasManager {
     /**
      * Enables freehand drawing on the canvas.
      *
-     * <p>Pressing the mouse starts a new drawing path, and dragging continues the path.
+     * <p>Pressing the mouse starts a new stroke, and each drag event draws one
+     * segment from the previous mouse position to the current one. Drawing
+     * only the new segment, rather than extending and re-stroking a single
+     * path, keeps long strokes fast and stops their antialiased edges from
+     * being drawn over and over, which made them thicker and darker.
      * Safe to call repeatedly, e.g. to restore drawing mode after another tool
      * (such as bucket fill) has temporarily taken over the canvas's mouse handlers.</p>
      */
     public void enableDrawingMode() {
         canvas.setOnMousePressed(event -> {
             saveState();
-            gc.setStroke(drawingColor);
-            gc.beginPath();
-            gc.moveTo(event.getX(), event.getY());
-            gc.stroke();
+            lastX = event.getX();
+            lastY = event.getY();
         });
 
         canvas.setOnMouseDragged(event -> {
             gc.setStroke(drawingColor);
-            gc.lineTo(event.getX(), event.getY());
-            gc.stroke();
+            gc.strokeLine(lastX, lastY, event.getX(), event.getY());
+            lastX = event.getX();
+            lastY = event.getY();
         });
     }
 
