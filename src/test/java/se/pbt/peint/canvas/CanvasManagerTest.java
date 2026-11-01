@@ -14,6 +14,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import se.pbt.peint.FxTestSupport;
 
+import java.awt.Graphics2D;
+import java.awt.image.BufferedImage;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -83,6 +86,118 @@ class CanvasManagerTest {
             container.resize(200, 200);
 
             assertTrue(pixel(50, 50).getBrightness() < 0.9, "growing the canvas should keep what was drawn");
+        });
+    }
+
+    @Test
+    void undoRemovesTheLastStroke() {
+        FxTestSupport.runAndWait(() -> {
+            drag(10, 50, 90, 50, 8);
+
+            canvasManager.undo();
+
+            assertEquals(Color.WHITE, pixel(50, 50));
+        });
+    }
+
+    @Test
+    void redoReappliesAnUndoneStroke() {
+        FxTestSupport.runAndWait(() -> {
+            drag(10, 50, 90, 50, 8);
+            canvasManager.undo();
+
+            canvasManager.redo();
+
+            assertTrue(pixel(50, 50).getBrightness() < 0.9, "redo should bring the stroke back");
+        });
+    }
+
+    @Test
+    void undoAcrossAGrowRemovesStrokesInTheNewArea() {
+        FxTestSupport.runAndWait(() -> {
+            container.resize(SIZE, SIZE);
+            drag(10, 50, 90, 50, 8); // records the blank 100x100 canvas
+
+            container.resize(200, 200);
+            drag(110, 150, 190, 150, 8); // records 200x200 with the first stroke
+            canvasManager.undo();
+            canvasManager.undo();
+
+            assertEquals(Color.WHITE, pixel(50, 50), "the first stroke should be undone");
+            assertEquals(Color.WHITE, pixel(150, 150), "the second stroke should be undone");
+        });
+    }
+
+    @Test
+    void redoAfterUndoAcrossAGrowRestoresBothStrokes() {
+        FxTestSupport.runAndWait(() -> {
+            container.resize(SIZE, SIZE);
+            drag(10, 50, 90, 50, 8);
+            container.resize(200, 200);
+            drag(110, 150, 190, 150, 8);
+            canvasManager.undo();
+            canvasManager.undo();
+
+            canvasManager.redo();
+            canvasManager.redo();
+
+            assertTrue(pixel(50, 50).getBrightness() < 0.9, "the first stroke should be back");
+            assertTrue(pixel(150, 150).getBrightness() < 0.9, "the second stroke should be back");
+        });
+    }
+
+    @Test
+    void clearCanvasRemovesEverythingAndCanBeUndone() {
+        FxTestSupport.runAndWait(() -> {
+            drag(10, 50, 90, 50, 8);
+
+            canvasManager.clearCanvas();
+            assertEquals(Color.WHITE, pixel(50, 50), "clear should remove the stroke");
+
+            canvasManager.undo();
+            assertTrue(pixel(50, 50).getBrightness() < 0.9, "undoing the clear should bring the stroke back");
+        });
+    }
+
+    @Test
+    void loadImageDrawsTheImageAtTheTopLeftAndCanBeUndone() {
+        FxTestSupport.runAndWait(() -> {
+            BufferedImage image = new BufferedImage(20, 20, BufferedImage.TYPE_INT_RGB);
+            Graphics2D g = image.createGraphics();
+            g.setColor(java.awt.Color.BLUE);
+            g.fillRect(0, 0, 20, 20);
+            g.dispose();
+
+            canvasManager.loadImage(image);
+            assertEquals(Color.BLUE, pixel(10, 10));
+            assertEquals(Color.WHITE, pixel(50, 50), "the canvas outside the image should be untouched");
+
+            canvasManager.undo();
+            assertEquals(Color.WHITE, pixel(10, 10), "undo should remove the loaded image");
+        });
+    }
+
+    @Test
+    void bucketFillFillsTheClickedAreaAndCanBeUndone() {
+        FxTestSupport.runAndWait(() -> {
+            canvasManager.bucketFill(50, 50, Color.RED);
+            assertEquals(Color.RED, pixel(50, 50));
+            assertEquals(Color.RED, pixel(0, 0), "the whole blank canvas is one area");
+
+            canvasManager.undo();
+            assertEquals(Color.WHITE, pixel(50, 50), "undo should remove the fill");
+        });
+    }
+
+    @Test
+    void bucketFillStopsAtStrokes() {
+        FxTestSupport.runAndWait(() -> {
+            drag(0, 50, SIZE, 50, 8);
+
+            canvasManager.bucketFill(50, 20, Color.RED);
+
+            assertEquals(Color.RED, pixel(50, 20), "the clicked side should be filled");
+            assertEquals(Color.WHITE, pixel(50, 80), "the fill shouldn't cross the stroke");
         });
     }
 
