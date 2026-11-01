@@ -1,0 +1,100 @@
+# Builds Peint for Windows, Linux and macOS and publishes a GitHub release
+# whenever a version tag (e.g. v1.0.0) is pushed.
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+# Git Bash on Windows, so ./mvnw and the scripts below work the same on every runner.
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  test:
+    # The tests need a display for JavaFX; the Windows runner has one.
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: maven
+
+      - name: Check that the tag matches the project version
+        run: |
+          version=$(./mvnw -B -q help:evaluate -Dexpression=project.version -DforceStdout)
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match project version $version in pom.xml"
+            exit 1
+          fi
+
+      - name: Run tests
+        run: ./mvnw -B test
+
+  package:
+    needs: test
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            platform: windows-x64
+          - os: ubuntu-latest
+            platform: linux-x64
+          - os: macos-latest
+            platform: macos-arm64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: maven
+
+      # JavaFX ships native libraries per OS, so each platform gets its own
+      # self-contained image, with a bundled Java runtime, built on that OS.
+      - name: Build runtime image
+        run: ./mvnw -B javafx:jlink
+
+      - name: Archive runtime image
+        run: |
+          name="peint-${GITHUB_REF_NAME#v}-${{ matrix.platform }}"
+          mkdir dist
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            mv target/peint.zip "dist/$name.zip"
+          else
+            # tar keeps the launcher script executable, which the zip doesn't.
+            tar -czf "dist/$name.tar.gz" -C target peint
+          fi
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.platform }}
+          path: dist/*
+
+  release:
+    needs: package
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "Peint ${GITHUB_REF_NAME#v}" \
+            --generate-notes \
+            --verify-tag

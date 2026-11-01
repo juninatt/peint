@@ -81,9 +81,9 @@
                         <id>default-cli</id>
                         <configuration>
                             <mainClass>se.pbt.peint/se.pbt.peint.PeintApp</mainClass>
-                            <launcher>app</launcher>
-                            <jlinkZipName>app</jlinkZipName>
-                            <jlinkImageName>app</jlinkImageName>
+                            <launcher>peint</launcher>
+                            <jlinkZipName>peint</jlinkZipName>
+                            <jlinkImageName>peint</jlinkImageName>
                             <noManPages>true</noManPages>
                             <stripDebug>true</stripDebug>
                             <noHeaderFiles>true</noHeaderFiles>
