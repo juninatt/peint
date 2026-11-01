@@ -8,6 +8,7 @@ import javafx.scene.image.PixelWriter;
 import javafx.scene.image.WritableImage;
 import javafx.scene.layout.Region;
 import javafx.scene.paint.Color;
+import javafx.scene.shape.Rectangle;
 
 import java.awt.image.BufferedImage;
 
@@ -39,16 +40,23 @@ public final class CanvasManager {
         this.gc = canvas.getGraphicsContext2D();
 
         parent.widthProperty().addListener((observable, oldWidth, newWidth) ->
-                resizeCanvas(newWidth.doubleValue(), canvas.getHeight()));
+                growCanvas(newWidth.doubleValue(), parent.getHeight()));
         parent.heightProperty().addListener((observable, oldHeight, newHeight) ->
-                resizeCanvas(canvas.getWidth(), newHeight.doubleValue()));
+                growCanvas(parent.getWidth(), newHeight.doubleValue()));
+
+        // The canvas can be larger than its parent after the window shrinks,
+        // so clip it to the parent rather than let it paint over the toolbar.
+        Rectangle clip = new Rectangle();
+        clip.widthProperty().bind(parent.widthProperty());
+        clip.heightProperty().bind(parent.heightProperty());
+        parent.setClip(clip);
 
         enableDrawingMode();
     }
 
     /**
-     * Resizes the canvas to match the parent layout, preserving its current
-     * drawing in the process.
+     * Grows the canvas to cover the parent layout, preserving its current
+     * drawing in the process. The canvas never shrinks.
      *
      * <p>Changing a {@link Canvas}'s width or height clears its pixel content, so
      * simply binding the size properties (as this class used to) erases the
@@ -57,11 +65,18 @@ public final class CanvasManager {
      * snapshot at the top-left corner, so existing drawings survive a resize
      * instead of being wiped out.</p>
      *
-     * @param newWidth the new canvas width
-     * @param newHeight the new canvas height
+     * <p>Shrinking the canvas along with the window would permanently cut off
+     * everything outside the smaller size, so the canvas keeps its largest
+     * size and the parent's clip hides whatever no longer fits.</p>
+     *
+     * @param parentWidth the parent layout's new width
+     * @param parentHeight the parent layout's new height
      */
-    private void resizeCanvas(double newWidth, double newHeight) {
-        if (newWidth <= 0 || newHeight <= 0) {
+    private void growCanvas(double parentWidth, double parentHeight) {
+        double newWidth = Math.max(canvas.getWidth(), parentWidth);
+        double newHeight = Math.max(canvas.getHeight(), parentHeight);
+        if (newWidth <= 0 || newHeight <= 0
+                || (newWidth == canvas.getWidth() && newHeight == canvas.getHeight())) {
             return;
         }
 

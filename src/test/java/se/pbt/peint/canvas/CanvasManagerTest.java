@@ -8,6 +8,7 @@ import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.Pane;
 import javafx.scene.paint.Color;
+import javafx.scene.shape.Rectangle;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -21,6 +22,7 @@ class CanvasManagerTest {
     private static final int SIZE = 100;
 
     private Canvas canvas;
+    private Pane container;
     private CanvasManager canvasManager;
 
     @BeforeAll
@@ -32,8 +34,67 @@ class CanvasManagerTest {
     void setUp() {
         FxTestSupport.runAndWait(() -> {
             canvas = new Canvas(SIZE, SIZE);
-            canvasManager = new CanvasManager(canvas, new Pane(canvas));
+            container = new Pane(canvas);
+            canvasManager = new CanvasManager(canvas, container);
             canvasManager.setDrawingColor(Color.BLACK);
+        });
+    }
+
+    @Test
+    void canvasGrowsWithItsContainer() {
+        FxTestSupport.runAndWait(() -> {
+            container.resize(150, 120);
+
+            assertEquals(150, canvas.getWidth());
+            assertEquals(120, canvas.getHeight());
+        });
+    }
+
+    @Test
+    void canvasDoesNotShrinkWithItsContainer() {
+        FxTestSupport.runAndWait(() -> {
+            container.resize(150, 150);
+
+            container.resize(60, 40);
+
+            assertEquals(150, canvas.getWidth());
+            assertEquals(150, canvas.getHeight());
+        });
+    }
+
+    @Test
+    void drawingSurvivesAShrinkAndRegrowOfTheContainer() {
+        FxTestSupport.runAndWait(() -> {
+            container.resize(SIZE, SIZE);
+            drag(10, 80, 90, 80, 8);
+
+            container.resize(SIZE, 40); // hides the stroke...
+            container.resize(SIZE, SIZE); // ...and shows it again
+
+            assertTrue(pixel(50, 80).getBrightness() < 0.9, "a stroke outside the shrunk area should be kept");
+        });
+    }
+
+    @Test
+    void drawingSurvivesTheCanvasGrowing() {
+        FxTestSupport.runAndWait(() -> {
+            drag(10, 50, 90, 50, 8);
+
+            container.resize(200, 200);
+
+            assertTrue(pixel(50, 50).getBrightness() < 0.9, "growing the canvas should keep what was drawn");
+        });
+    }
+
+    @Test
+    void containerClipsTheCanvasToItsOwnSize() {
+        FxTestSupport.runAndWait(() -> {
+            container.resize(150, 150);
+            container.resize(60, 40);
+
+            Rectangle clip = (Rectangle) container.getClip();
+            assertEquals(60, clip.getWidth());
+            assertEquals(40, clip.getHeight());
         });
     }
 
@@ -121,7 +182,7 @@ class CanvasManagerTest {
      * a default snapshot uses.
      */
     private Color pixel(int x, int y) {
-        WritableImage snapshot = new WritableImage(SIZE, SIZE);
+        WritableImage snapshot = new WritableImage((int) canvas.getWidth(), (int) canvas.getHeight());
         canvas.snapshot(null, snapshot);
         return snapshot.getPixelReader().getColor(x, y);
     }
