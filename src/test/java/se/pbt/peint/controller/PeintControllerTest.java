@@ -24,6 +24,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import se.pbt.peint.FxTestSupport;
+import se.pbt.peint.canvas.BrushTool;
+import se.pbt.peint.canvas.FillTool;
 
 import javax.imageio.ImageIO;
 import java.awt.Graphics2D;
@@ -40,8 +42,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -127,10 +128,10 @@ class PeintControllerTest {
     }
 
     @Test
-    void onBucketFillArmsAClickHandlerOnTheCanvas() {
+    void onBucketFillSelectsTheFillTool() {
         FxTestSupport.runAndWait(() -> controller.onBucketFill());
 
-        assertNotNull(controller.canvas.getOnMouseClicked());
+        assertInstanceOf(FillTool.class, controller.canvasManager.getTool());
     }
 
     @Test
@@ -148,8 +149,7 @@ class PeintControllerTest {
             fireMouse(MouseEvent.MOUSE_CLICKED, 10, 10);
 
             assertEquals(Cursor.DEFAULT, controller.canvas.getCursor());
-            assertNull(controller.canvas.getOnMouseClicked(), "the fill should only apply once");
-            assertNotNull(controller.canvas.getOnMousePressed(), "drawing should be enabled again");
+            assertInstanceOf(BrushTool.class, controller.canvasManager.getTool(), "the fill should only apply once");
         });
     }
 
@@ -161,8 +161,7 @@ class PeintControllerTest {
             pressKey(KeyCode.ESCAPE);
 
             assertEquals(Cursor.DEFAULT, controller.canvas.getCursor());
-            assertNull(controller.canvas.getOnMouseClicked(), "a click after Escape shouldn't fill");
-            assertNotNull(controller.canvas.getOnMousePressed(), "drawing should be enabled again");
+            assertInstanceOf(BrushTool.class, controller.canvasManager.getTool(), "a click after Escape shouldn't fill");
         });
     }
 
@@ -187,7 +186,7 @@ class PeintControllerTest {
             pressKey(KeyCode.A);
 
             assertEquals(Cursor.CROSSHAIR, controller.canvas.getCursor());
-            assertNotNull(controller.canvas.getOnMouseClicked());
+            assertInstanceOf(FillTool.class, controller.canvasManager.getTool());
         });
     }
 

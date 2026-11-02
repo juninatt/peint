@@ -20,7 +20,9 @@ import javafx.scene.layout.Pane;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.stage.FileChooser;
+import se.pbt.peint.canvas.BrushTool;
 import se.pbt.peint.canvas.CanvasManager;
+import se.pbt.peint.canvas.FillTool;
 import se.pbt.peint.support.BackgroundTasks;
 import se.pbt.peint.support.ImageFileService;
 
@@ -71,7 +73,7 @@ public class PeintController {
     // Cancels an armed bucket fill; added to the scene only while armed.
     private final EventHandler<KeyEvent> cancelFillOnEscape = event -> {
         if (event.getCode() == KeyCode.ESCAPE) {
-            resetCanvasEvents();
+            restoreBrush();
             event.consume();
         }
     };
@@ -265,8 +267,8 @@ public class PeintController {
     }
 
     /**
-     * Arms the bucket fill tool: disables freehand drawing and fills the
-     * clicked area on the next canvas click, then restores the pencil.
+     * Arms the bucket fill tool: fills the clicked area on the next canvas
+     * click, then switches back to the brush.
      *
      * <p>While armed, the canvas shows a crosshair cursor, and Escape
      * cancels the fill. Escape is caught by a filter on the whole scene, so
@@ -274,7 +276,7 @@ public class PeintController {
      */
     @FXML
     void onBucketFill() {
-        canvasManager.disableDrawingMode();
+        canvasManager.setTool(new FillTool(this::restoreBrush));
         canvas.setCursor(Cursor.CROSSHAIR);
 
         Scene scene = canvas.getScene();
@@ -283,13 +285,6 @@ public class PeintController {
             scene.removeEventFilter(KeyEvent.KEY_PRESSED, cancelFillOnEscape);
             scene.addEventFilter(KeyEvent.KEY_PRESSED, cancelFillOnEscape);
         }
-
-        canvas.setOnMouseClicked(event -> {
-            double x = event.getX();
-            double y = event.getY();
-            canvasManager.bucketFill(x, y, colorPicker.getValue());
-            resetCanvasEvents();
-        });
     }
 
     /**
@@ -309,17 +304,15 @@ public class PeintController {
     }
 
     /**
-     * Removes the fill tool's one-shot click handler, cursor and Escape
-     * filter, and re-enables freehand drawing, once a fill has completed or
-     * been cancelled.
+     * Switches back to the brush, removing the fill tool's cursor and Escape
+     * filter, once a fill has completed or been cancelled.
      */
-    void resetCanvasEvents() {
-        canvas.setOnMouseClicked(null);
+    void restoreBrush() {
+        canvasManager.setTool(new BrushTool());
         canvas.setCursor(Cursor.DEFAULT);
         Scene scene = canvas.getScene();
         if (scene != null) {
             scene.removeEventFilter(KeyEvent.KEY_PRESSED, cancelFillOnEscape);
         }
-        canvasManager.enableDrawingMode();
     }
 }

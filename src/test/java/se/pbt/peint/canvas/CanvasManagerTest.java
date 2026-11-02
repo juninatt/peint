@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.io.InputStream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
@@ -430,13 +431,54 @@ class CanvasManagerTest {
     }
 
     @Test
-    void disableDrawingModeStopsDragsFromDrawing() {
+    void dragsDoNotDrawWithTheFillTool() {
         FxTestSupport.runAndWait(() -> {
-            canvasManager.disableDrawingMode();
+            canvasManager.setTool(new FillTool(() -> { }));
 
             drag(10, 50, 90, 50, 8);
 
             assertEquals(Color.WHITE, pixel(50, 50));
+        });
+    }
+
+    @Test
+    void theBrushIsSelectedByDefault() {
+        assertInstanceOf(BrushTool.class, canvasManager.getTool());
+    }
+
+    @Test
+    void clickingWithTheFillToolFillsAndReportsIt() {
+        FxTestSupport.runAndWait(() -> {
+            int[] fills = {0};
+            canvasManager.setDrawingColor(Color.RED);
+            canvasManager.setTool(new FillTool(() -> fills[0]++));
+
+            fireMouse(MouseEvent.MOUSE_CLICKED, 50, 50);
+
+            assertEquals(Color.RED, pixel(50, 50), "the click should fill in the drawing color");
+            assertEquals(1, fills[0], "the fill tool should report each fill");
+        });
+    }
+
+    @Test
+    void clicksDoNothingWithTheBrush() {
+        FxTestSupport.runAndWait(() -> {
+            fireMouse(MouseEvent.MOUSE_CLICKED, 50, 50);
+
+            assertEquals(Color.WHITE, pixel(50, 50));
+            assertEquals(0, canvasManager.history().undoCount());
+        });
+    }
+
+    @Test
+    void switchingBackToTheBrushDrawsAgain() {
+        FxTestSupport.runAndWait(() -> {
+            canvasManager.setTool(new FillTool(() -> { }));
+            canvasManager.setTool(new BrushTool());
+
+            drag(10, 50, 90, 50, 8);
+
+            assertTrue(pixel(50, 50).getBrightness() < 0.9, "the brush should draw again");
         });
     }
 

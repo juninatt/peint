@@ -29,14 +29,7 @@ public final class CanvasManager {
     private final History history = new History();
 
     private Color drawingColor;
-
-    // The mouse position the current stroke's next segment starts from.
-    private double lastX;
-    private double lastY;
-
-    // The area the current stroke has painted in so far, or null before its
-    // first segment.
-    private Rectangle2D strokeBounds;
+    private Tool tool = new BrushTool();
 
     // The canvas as it was when the current edit began; see beginEdit().
     private WritableImage editBefore;
@@ -64,7 +57,28 @@ public final class CanvasManager {
         parent.setClip(clip);
 
         fillBackground(0, 0, canvas.getWidth(), canvas.getHeight());
-        enableDrawingMode();
+
+        // Installed once; each forwards to whichever tool is selected.
+        canvas.setOnMousePressed(event -> tool.pressed(this, event.getX(), event.getY()));
+        canvas.setOnMouseDragged(event -> tool.dragged(this, event.getX(), event.getY()));
+        canvas.setOnMouseReleased(event -> tool.released(this, event.getX(), event.getY()));
+        canvas.setOnMouseClicked(event -> tool.clicked(this, event.getX(), event.getY()));
+    }
+
+    /**
+     * Selects the tool the mouse uses on the canvas.
+     *
+     * @param tool the tool to use from now on
+     */
+    public void setTool(Tool tool) {
+        this.tool = tool;
+    }
+
+    /**
+     * @return the tool the mouse currently uses on the canvas
+     */
+    public Tool getTool() {
+        return tool;
     }
 
     /**
@@ -123,50 +137,6 @@ public final class CanvasManager {
     private void fillBackground(double x, double y, double width, double height) {
         gc.setFill(BACKGROUND);
         gc.fillRect(x, y, width, height);
-    }
-
-    /**
-     * Enables freehand drawing on the canvas.
-     *
-     * <p>Pressing the mouse starts a new stroke, and each drag event draws one
-     * segment from the previous mouse position to the current one. Drawing
-     * only the new segment, rather than extending and re-stroking a single
-     * path, keeps long strokes fast and stops their antialiased edges from
-     * being drawn over and over, which made them thicker and darker.
-     * Releasing the mouse records the stroke for undo, covering only the
-     * rectangle it was drawn in.
-     * Safe to call repeatedly, e.g. to restore drawing mode after another tool
-     * (such as bucket fill) has temporarily taken over the canvas's mouse handlers.</p>
-     */
-    public void enableDrawingMode() {
-        canvas.setOnMousePressed(event -> {
-            beginEdit();
-            lastX = event.getX();
-            lastY = event.getY();
-            strokeBounds = null;
-        });
-
-        canvas.setOnMouseDragged(event -> {
-            gc.setStroke(drawingColor);
-            gc.strokeLine(lastX, lastY, event.getX(), event.getY());
-            strokeBounds = union(strokeBounds, segmentBounds(lastX, lastY, event.getX(), event.getY()));
-            lastX = event.getX();
-            lastY = event.getY();
-        });
-
-        canvas.setOnMouseReleased(event -> commitEdit(strokeBounds));
-    }
-
-    /**
-     * Disables freehand drawing on the canvas by removing its mouse handlers.
-     *
-     * <p>Used while another tool (such as bucket fill) is temporarily armed and
-     * waiting for a click, so that a press-and-drag doesn't also draw a stray line.</p>
-     */
-    public void disableDrawingMode() {
-        canvas.setOnMousePressed(null);
-        canvas.setOnMouseDragged(null);
-        canvas.setOnMouseReleased(null);
     }
 
     /**
@@ -236,7 +206,7 @@ public final class CanvasManager {
      *
      * @return the snapshot of the canvas before the change
      */
-    private WritableImage beginEdit() {
+    WritableImage beginEdit() {
         editBefore = snapshotCanvas();
         return editBefore;
     }
@@ -248,7 +218,7 @@ public final class CanvasManager {
      * @param changed the rectangle the change touched, or {@code null} if
      *                nothing changed, in which case nothing is recorded
      */
-    private void commitEdit(Rectangle2D changed) {
+    void commitEdit(Rectangle2D changed) {
         WritableImage before = editBefore;
         editBefore = null;
         if (before == null || changed == null) {
@@ -268,28 +238,6 @@ public final class CanvasManager {
 
         WritableImage beforeRegion = new WritableImage(before.getPixelReader(), x, y, width, height);
         history.record(new Edit(x, y, beforeRegion, snapshotRegion(x, y, width, height)));
-    }
-
-    /**
-     * Returns the rectangle a stroke segment can paint in: the segment's
-     * bounding box, widened by the line width and a pixel of antialiasing.
-     */
-    private Rectangle2D segmentBounds(double x1, double y1, double x2, double y2) {
-        double margin = gc.getLineWidth() / 2 + 1;
-        double minX = Math.min(x1, x2) - margin;
-        double minY = Math.min(y1, y2) - margin;
-        return new Rectangle2D(minX, minY, Math.abs(x2 - x1) + 2 * margin, Math.abs(y2 - y1) + 2 * margin);
-    }
-
-    private static Rectangle2D union(Rectangle2D a, Rectangle2D b) {
-        if (a == null) {
-            return b;
-        }
-        double minX = Math.min(a.getMinX(), b.getMinX());
-        double minY = Math.min(a.getMinY(), b.getMinY());
-        double maxX = Math.max(a.getMaxX(), b.getMaxX());
-        double maxY = Math.max(a.getMaxY(), b.getMaxY());
-        return new Rectangle2D(minX, minY, maxX - minX, maxY - minY);
     }
 
     /**
@@ -319,6 +267,13 @@ public final class CanvasManager {
      */
     public void setDrawingColor(Color color) {
         this.drawingColor = color;
+    }
+
+    /**
+     * @return the graphics context tools draw on the canvas with
+     */
+    GraphicsContext graphics() {
+        return gc;
     }
 
     /**
