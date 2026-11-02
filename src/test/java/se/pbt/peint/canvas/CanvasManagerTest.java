@@ -15,8 +15,11 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import se.pbt.peint.FxTestSupport;
 
+import javax.imageio.ImageIO;
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
+import java.io.IOException;
+import java.io.InputStream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -169,6 +172,25 @@ class CanvasManagerTest {
 
             canvasManager.undo();
             assertEquals(Color.WHITE, pixel(10, 10), "undo should remove the loaded image");
+        });
+    }
+
+    @Test
+    void loadImageDrawsACmykImageInTheRightColors() throws IOException {
+        // Decoded from a CMYK JPEG, the image has a CMYK color model, which
+        // must be converted rather than copied when drawn on the canvas.
+        BufferedImage cmyk;
+        try (InputStream in = CanvasManagerTest.class.getResourceAsStream("/se/pbt/peint/support/cmyk.jpg")) {
+            cmyk = ImageIO.read(in);
+        }
+
+        FxTestSupport.runAndWait(() -> {
+            canvasManager.loadImage(cmyk);
+
+            Color left = pixel(5, 10);
+            Color right = pixel(35, 10);
+            assertTrue(left.getRed() > 0.8 && left.getBlue() < 0.2, "left side should be red, was " + left);
+            assertTrue(right.getBlue() > 0.8 && right.getRed() < 0.2, "right side should be blue, was " + right);
         });
     }
 

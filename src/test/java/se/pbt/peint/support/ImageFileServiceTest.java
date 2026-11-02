@@ -7,6 +7,7 @@ import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.ByteOrder;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -81,6 +82,22 @@ class ImageFileServiceTest {
 
         assertEquals(40, loaded.getWidth());
         assertEquals(20, loaded.getHeight());
+    }
+
+    @Test
+    void loadReadsACmykJpegInTheRightColors() throws IOException {
+        // cmyk.jpg: 40x20, red on the left and blue on the right, stored as
+        // CMYK the way print-oriented tools such as Photoshop save JPEGs.
+        File file = tempDir.resolve("cmyk.jpg").toFile();
+        try (InputStream in = ImageFileServiceTest.class.getResourceAsStream("cmyk.jpg")) {
+            Files.copy(in, file.toPath());
+        }
+
+        BufferedImage loaded = service.load(file);
+
+        assertNotNull(loaded, "a CMYK JPEG should be readable");
+        assertTrue(isMostlyRed(loaded.getRGB(5, 10)), "left side should be red");
+        assertTrue(isMostlyBlue(loaded.getRGB(35, 10)), "right side should be blue");
     }
 
     private static boolean isMostlyRed(int rgb) {
