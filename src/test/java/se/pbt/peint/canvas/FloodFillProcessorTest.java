@@ -88,6 +88,33 @@ class FloodFillProcessorTest {
     }
 
     @Test
+    void fillsPixelsWithinTheToleranceOfTheClickedColor() {
+        FxTestSupport.runAndWait(() -> {
+            WritableImage image = filledImage(Color.WHITE);
+            Color nearlyWhite = shadeAway(Color.WHITE, FloodFillProcessor.TOLERANCE);
+            image.getPixelWriter().setColor(7, 7, nearlyWhite);
+
+            fill(image, 2, 2, Color.RED);
+
+            assertEquals(Color.RED, color(image, 7, 7), "a pixel within the tolerance should be filled");
+        });
+    }
+
+    @Test
+    void stopsAtPixelsBeyondTheTolerance() {
+        FxTestSupport.runAndWait(() -> {
+            WritableImage image = filledImage(Color.WHITE);
+            Color justTooDark = shadeAway(Color.WHITE, FloodFillProcessor.TOLERANCE + 1);
+            drawBox(image, 2, 2, 7, 7, justTooDark);
+
+            fill(image, 4, 4, Color.RED);
+
+            assertEquals(justTooDark, color(image, 2, 4), "a pixel beyond the tolerance should be kept");
+            assertEquals(Color.WHITE, color(image, 0, 0), "the fill shouldn't pass through it");
+        });
+    }
+
+    @Test
     void fillsALargeImageCompletely() {
         FxTestSupport.runAndWait(() -> {
             // Big enough that queueing pixels more than once, as the fill
@@ -154,6 +181,17 @@ class FloodFillProcessorTest {
             writer.setColor(x1, y, color);
             writer.setColor(x2, y, color);
         }
+    }
+
+    /**
+     * Returns the color whose red, green and blue channels are each the given
+     * number of steps (0-255) darker than the given color's.
+     */
+    private static Color shadeAway(Color color, int steps) {
+        return Color.rgb(
+                (int) Math.round(color.getRed() * 255) - steps,
+                (int) Math.round(color.getGreen() * 255) - steps,
+                (int) Math.round(color.getBlue() * 255) - steps);
     }
 
     private static Color color(WritableImage image, int x, int y) {

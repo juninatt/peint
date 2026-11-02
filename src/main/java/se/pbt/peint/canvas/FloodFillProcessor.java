@@ -11,6 +11,20 @@ import javafx.scene.paint.Color;
  * algorithm to replace a contiguous area of color with a new color.</p>
  */
 public class FloodFillProcessor {
+
+    /**
+     * How far, per color channel (0-255), a pixel may differ from the clicked
+     * pixel and still be filled.
+     *
+     * <p>Strokes are antialiased, so their edges fade through lighter shades
+     * into the background. With an exact match those shades were left
+     * unfilled, as a pale outline inside every filled shape. This tolerance
+     * fills the lighter part of that fade and stops at the darker core of the
+     * stroke. The trade-off is that areas of very similar colors are filled
+     * as one.</p>
+     */
+    static final int TOLERANCE = 100;
+
     private final PixelReader pixelReader;
     private final PixelWriter pixelWriter;
     private final int canvasWidth;
@@ -29,8 +43,8 @@ public class FloodFillProcessor {
     /**
      * Fills a contiguous area starting at the given coordinates with a new color.
      *
-     * <p>The algorithm replaces all connected pixels of the same initial color
-     * with the specified new color.</p>
+     * <p>The algorithm replaces all connected pixels within {@link #TOLERANCE}
+     * of the initial color with the specified new color.</p>
      *
      * <p>Each pixel is marked as visited when it is queued rather than when it
      * is filled, so no pixel enters the queue more than once. Queued pixels
@@ -85,12 +99,27 @@ public class FloodFillProcessor {
             return tail;
         }
         int index = y * canvasWidth + x;
-        if (queued[index] || pixelReader.getArgb(x, y) != targetArgb) {
+        if (queued[index] || !isCloseTo(pixelReader.getArgb(x, y), targetArgb)) {
             return tail;
         }
         queued[index] = true;
         queue[tail] = index;
         return tail + 1;
+    }
+
+    /**
+     * Checks whether two ARGB colors differ by at most {@link #TOLERANCE} in
+     * every channel, alpha included.
+     */
+    private static boolean isCloseTo(int argb, int targetArgb) {
+        for (int shift = 0; shift <= 24; shift += 8) {
+            int channel = (argb >>> shift) & 0xFF;
+            int targetChannel = (targetArgb >>> shift) & 0xFF;
+            if (Math.abs(channel - targetChannel) > TOLERANCE) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private boolean isInside(int x, int y) {

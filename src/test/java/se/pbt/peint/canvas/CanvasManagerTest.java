@@ -3,6 +3,7 @@ package se.pbt.peint.canvas;
 import javafx.event.Event;
 import javafx.event.EventType;
 import javafx.scene.canvas.Canvas;
+import javafx.scene.image.PixelReader;
 import javafx.scene.image.WritableImage;
 import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
@@ -202,6 +203,28 @@ class CanvasManagerTest {
     }
 
     @Test
+    void bucketFillLeavesNoPaleOutlineAlongAStroke() {
+        FxTestSupport.runAndWait(() -> {
+            // A diagonal stroke is antialiased into many shades of gray.
+            drag(0, 0, SIZE, SIZE, 20);
+
+            canvasManager.bucketFill(SIZE - 10, 10, Color.RED);
+
+            // Every pixel on the filled side is now either filled or part of
+            // the stroke's dark core; no pale, unfilled edge pixels remain.
+            PixelReader pixels = snapshot().getPixelReader();
+            for (int x = 0; x < SIZE; x++) {
+                for (int y = 0; y < x; y++) {
+                    Color c = pixels.getColor(x, y);
+                    boolean filled = c.equals(Color.RED);
+                    boolean darkStroke = c.getBrightness() < 0.65;
+                    assertTrue(filled || darkStroke, "pixel " + x + "," + y + " was left pale: " + c);
+                }
+            }
+        });
+    }
+
+    @Test
     void containerClipsTheCanvasToItsOwnSize() {
         FxTestSupport.runAndWait(() -> {
             container.resize(150, 150);
@@ -297,8 +320,12 @@ class CanvasManagerTest {
      * a default snapshot uses.
      */
     private Color pixel(int x, int y) {
+        return snapshot().getPixelReader().getColor(x, y);
+    }
+
+    private WritableImage snapshot() {
         WritableImage snapshot = new WritableImage((int) canvas.getWidth(), (int) canvas.getHeight());
         canvas.snapshot(null, snapshot);
-        return snapshot.getPixelReader().getColor(x, y);
+        return snapshot;
     }
 }
