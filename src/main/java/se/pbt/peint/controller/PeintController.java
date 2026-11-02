@@ -387,7 +387,10 @@ public class PeintController {
     private void showSettingsFor(Tool tool) {
         switch (tool) {
             case BrushTool brush -> showWidth(brush.getWidth(), brush::setWidth);
-            case EraserTool eraser -> showWidth(eraser.getWidth(), eraser::setWidth);
+            case EraserTool eraser -> showWidth(eraser.getWidth(), width -> {
+                eraser.setWidth(width);
+                canvas.setCursor(cursorFor(eraser)); // the cursor shows the eraser's size
+            });
             case FillTool fill -> {
                 widthTarget = width -> { };
                 setShown(widthControls, false);
@@ -430,7 +433,7 @@ public class PeintController {
     static Cursor cursorFor(Tool tool) {
         return switch (tool) {
             case BrushTool brush -> Cursor.DEFAULT;
-            case EraserTool eraser -> Cursor.DEFAULT;
+            case EraserTool eraser -> EraserCursor.forWidth(eraser.getWidth());
             case FillTool fill -> Cursor.CROSSHAIR;
         };
     }

@@ -4,6 +4,7 @@ import javafx.event.ActionEvent;
 import javafx.event.Event;
 import javafx.event.EventType;
 import javafx.scene.Cursor;
+import javafx.scene.ImageCursor;
 import javafx.scene.Scene;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.control.Button;
@@ -316,10 +317,25 @@ class PeintControllerTest {
     }
 
     @Test
+    void theEraserCursorFollowsTheEraserWidth() {
+        FxTestSupport.runAndWait(() -> {
+            controller.onEraser();
+            assertInstanceOf(ImageCursor.class, controller.canvas.getCursor());
+
+            controller.widthSlider.setValue(50); // too wide for any system's cursor
+
+            assertEquals(Cursor.CROSSHAIR, controller.canvas.getCursor());
+        });
+    }
+
+    @Test
     void everyToolHasACursor() {
-        assertEquals(Cursor.DEFAULT, PeintController.cursorFor(new BrushTool()));
-        assertEquals(Cursor.DEFAULT, PeintController.cursorFor(new EraserTool()));
-        assertEquals(Cursor.CROSSHAIR, PeintController.cursorFor(new FillTool()));
+        // Cursor sizes can only be looked up on the JavaFX Application Thread.
+        FxTestSupport.runAndWait(() -> {
+            assertEquals(Cursor.DEFAULT, PeintController.cursorFor(new BrushTool()));
+            assertInstanceOf(ImageCursor.class, PeintController.cursorFor(new EraserTool()), "a circle the size of the eraser");
+            assertEquals(Cursor.CROSSHAIR, PeintController.cursorFor(new FillTool()));
+        });
     }
 
     @Test
