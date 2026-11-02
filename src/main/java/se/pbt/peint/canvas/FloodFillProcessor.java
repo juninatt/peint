@@ -14,8 +14,8 @@ import javafx.scene.paint.Color;
 public class FloodFillProcessor {
 
     /**
-     * How far, per color channel (0-255), a pixel may differ from the clicked
-     * pixel and still be filled.
+     * The default for how far, per color channel (0-255), a pixel may differ
+     * from the clicked pixel and still be filled.
      *
      * <p>Strokes are antialiased, so their edges fade through lighter shades
      * into the background. With an exact match those shades were left
@@ -24,28 +24,44 @@ public class FloodFillProcessor {
      * stroke. The trade-off is that areas of very similar colors are filled
      * as one.</p>
      */
-    static final int TOLERANCE = 100;
+    public static final int DEFAULT_TOLERANCE = 100;
+
+    /** The largest tolerance, at which every pixel is close enough. */
+    public static final int MAX_TOLERANCE = 255;
 
     private final PixelReader pixelReader;
     private final PixelWriter pixelWriter;
     private final int canvasWidth;
     private final int canvasHeight;
+    private final int tolerance;
 
     /**
-     * Initializes the processor with canvas dimensions and pixel data handlers.
+     * Initializes the processor with canvas dimensions and pixel data
+     * handlers, using the {@link #DEFAULT_TOLERANCE}.
      */
     public FloodFillProcessor(PixelReader pixelReader, PixelWriter pixelWriter, int canvasWidth, int canvasHeight) {
+        this(pixelReader, pixelWriter, canvasWidth, canvasHeight, DEFAULT_TOLERANCE);
+    }
+
+    /**
+     * Initializes the processor with canvas dimensions, pixel data handlers,
+     * and how far (0-255 per color channel) a pixel may differ from the
+     * clicked one and still be filled.
+     */
+    public FloodFillProcessor(PixelReader pixelReader, PixelWriter pixelWriter, int canvasWidth, int canvasHeight,
+                              int tolerance) {
         this.pixelReader = pixelReader;
         this.pixelWriter = pixelWriter;
         this.canvasWidth = canvasWidth;
         this.canvasHeight = canvasHeight;
+        this.tolerance = tolerance;
     }
 
     /**
      * Fills a contiguous area starting at the given coordinates with a new color.
      *
-     * <p>The algorithm replaces all connected pixels within {@link #TOLERANCE}
-     * of the initial color with the specified new color.</p>
+     * <p>The algorithm replaces all connected pixels within the tolerance of
+     * the initial color with the specified new color.</p>
      *
      * <p>Each pixel is marked as visited when it is queued rather than when it
      * is filled, so no pixel enters the queue more than once. Queued pixels
@@ -123,14 +139,14 @@ public class FloodFillProcessor {
     }
 
     /**
-     * Checks whether two ARGB colors differ by at most {@link #TOLERANCE} in
-     * every channel, alpha included.
+     * Checks whether two ARGB colors differ by at most the tolerance in every
+     * channel, alpha included.
      */
-    private static boolean isCloseTo(int argb, int targetArgb) {
+    private boolean isCloseTo(int argb, int targetArgb) {
         for (int shift = 0; shift <= 24; shift += 8) {
             int channel = (argb >>> shift) & 0xFF;
             int targetChannel = (targetArgb >>> shift) & 0xFF;
-            if (Math.abs(channel - targetChannel) > TOLERANCE) {
+            if (Math.abs(channel - targetChannel) > tolerance) {
                 return false;
             }
         }

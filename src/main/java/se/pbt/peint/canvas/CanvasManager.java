@@ -191,10 +191,20 @@ public final class CanvasManager {
      * pixel source, and only the bounds of the filled pixels are recorded.</p>
      */
     public void bucketFill(double startX, double startY, Color newColor) {
+        bucketFill(startX, startY, newColor, FloodFillProcessor.DEFAULT_TOLERANCE);
+    }
+
+    /**
+     * Fills an area on the canvas with a new color, filling every connected
+     * pixel within the given tolerance (0-255 per color channel) of the
+     * clicked one.
+     */
+    public void bucketFill(double startX, double startY, Color newColor, int tolerance) {
         WritableImage before = beginEdit();
 
         FloodFillProcessor floodFillProcessor = new FloodFillProcessor(
-                before.getPixelReader(), gc.getPixelWriter(), (int) before.getWidth(), (int) before.getHeight()
+                before.getPixelReader(), gc.getPixelWriter(), (int) before.getWidth(), (int) before.getHeight(),
+                tolerance
         );
         commitEdit(floodFillProcessor.fill(startX, startY, newColor));
     }

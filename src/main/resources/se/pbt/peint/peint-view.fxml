@@ -118,6 +118,15 @@
                     </Slider>
                     <Label fx:id="widthLabel" minWidth="40" />
                 </HBox>
+                <!-- The fill tool's tolerance; shown only while it is selected. -->
+                <HBox fx:id="toleranceControls" alignment="CENTER_LEFT" spacing="6">
+                    <Slider fx:id="toleranceSlider" min="0" max="100" prefWidth="100">
+                        <tooltip>
+                            <Tooltip text="Fill tolerance: how different a color may be and still be filled" />
+                        </tooltip>
+                    </Slider>
+                    <Label fx:id="toleranceLabel" minWidth="40" />
+                </HBox>
                 <ColorPicker fx:id="colorPicker">
                     <tooltip>
                         <Tooltip text="Select a color for drawing" />

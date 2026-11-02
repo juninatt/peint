@@ -496,6 +496,36 @@ class CanvasManagerTest {
     }
 
     @Test
+    void theFillToolFillsWithItsOwnTolerance() {
+        FxTestSupport.runAndWait(() -> {
+            // White on the left, a slightly darker white on the right.
+            BufferedImage image = new BufferedImage(SIZE, SIZE, BufferedImage.TYPE_INT_RGB);
+            Graphics2D g = image.createGraphics();
+            g.setColor(java.awt.Color.WHITE);
+            g.fillRect(0, 0, SIZE / 2, SIZE);
+            g.setColor(new java.awt.Color(240, 240, 240));
+            g.fillRect(SIZE / 2, 0, SIZE / 2, SIZE);
+            g.dispose();
+            canvasManager.loadImage(image);
+            canvasManager.setDrawingColor(Color.RED);
+
+            FillTool exact = new FillTool();
+            exact.setTolerance(0);
+            canvasManager.setTool(exact);
+            fireMouse(MouseEvent.MOUSE_CLICKED, 10, 50);
+
+            assertEquals(Color.RED, pixel(10, 50));
+            assertEquals(Color.rgb(240, 240, 240), pixel(90, 50), "with no tolerance the darker half isn't filled");
+
+            canvasManager.undo();
+            canvasManager.setTool(new FillTool()); // default tolerance
+            fireMouse(MouseEvent.MOUSE_CLICKED, 10, 50);
+
+            assertEquals(Color.RED, pixel(90, 50), "with the default tolerance both halves are filled");
+        });
+    }
+
+    @Test
     void theBrushIsSelectedByDefault() {
         assertInstanceOf(BrushTool.class, canvasManager.getTool());
     }

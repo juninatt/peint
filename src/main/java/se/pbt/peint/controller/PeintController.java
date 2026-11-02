@@ -4,6 +4,7 @@ import javafx.concurrent.Task;
 import javafx.embed.swing.SwingFXUtils;
 import javafx.fxml.FXML;
 import javafx.scene.Cursor;
+import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.control.Alert;
@@ -26,6 +27,7 @@ import se.pbt.peint.canvas.BrushTool;
 import se.pbt.peint.canvas.CanvasManager;
 import se.pbt.peint.canvas.EraserTool;
 import se.pbt.peint.canvas.FillTool;
+import se.pbt.peint.canvas.FloodFillProcessor;
 import se.pbt.peint.canvas.Tool;
 import se.pbt.peint.support.BackgroundTasks;
 import se.pbt.peint.support.ImageFileService;
@@ -94,6 +96,15 @@ public class PeintController {
     @FXML
     Label widthLabel;
 
+    @FXML
+    HBox toleranceControls;
+
+    @FXML
+    Slider toleranceSlider;
+
+    @FXML
+    Label toleranceLabel;
+
     CanvasManager canvasManager;
     ToolbarManager toolbarManager;
     final ImageFileService imageFileService = new ImageFileService();
@@ -126,6 +137,14 @@ public class PeintController {
             widthTarget.accept(width);
             widthLabel.setText((int) width + " px");
         });
+        // Shown in percent; the fill tool works in steps of 0-255 per channel.
+        toleranceSlider.setValue(toPercent(fillTool.getTolerance()));
+        toleranceLabel.setText(Math.round(toleranceSlider.getValue()) + " %");
+        toleranceSlider.valueProperty().addListener((observable, oldPercent, newPercent) -> {
+            fillTool.setTolerance(fromPercent(newPercent.doubleValue()));
+            toleranceLabel.setText(Math.round(newPercent.doubleValue()) + " %");
+        });
+
         selectTool(brushTool, brushButton);
 
         // Clicking the selected tool's button would otherwise leave no tool
@@ -357,23 +376,39 @@ public class PeintController {
         canvasManager.setTool(tool);
         button.setSelected(true);
         canvas.setCursor(cursorFor(tool));
-        showWidthOf(tool);
+        showSettingsFor(tool);
     }
 
     /**
-     * Points the width slider at the given tool's width, or hides it if the
-     * tool has none.
+     * Shows the toolbar settings that apply to the given tool, and hides the
+     * rest: a width for the brush and the eraser, a tolerance for the fill.
      */
-    private void showWidthOf(Tool tool) {
+    private void showSettingsFor(Tool tool) {
         switch (tool) {
             case BrushTool brush -> showWidth(brush.getWidth(), brush::setWidth);
             case EraserTool eraser -> showWidth(eraser.getWidth(), eraser::setWidth);
             case FillTool fill -> {
                 widthTarget = width -> { };
-                widthControls.setVisible(false);
-                widthControls.setManaged(false);
+                setShown(widthControls, false);
             }
         }
+        setShown(toleranceControls, tool instanceof FillTool);
+    }
+
+    /**
+     * Shows or hides a toolbar control, letting hidden ones give up their space.
+     */
+    private static void setShown(Node control, boolean shown) {
+        control.setVisible(shown);
+        control.setManaged(shown);
+    }
+
+    static double toPercent(int tolerance) {
+        return tolerance * 100.0 / FloodFillProcessor.MAX_TOLERANCE;
+    }
+
+    static int fromPercent(double percent) {
+        return (int) Math.round(percent * FloodFillProcessor.MAX_TOLERANCE / 100);
     }
 
     private void showWidth(double width, DoubleConsumer setter) {
@@ -383,8 +418,7 @@ public class PeintController {
         widthSlider.setValue(width);
         widthLabel.setText((int) width + " px");
         widthTarget = setter;
-        widthControls.setVisible(true);
-        widthControls.setManaged(true);
+        setShown(widthControls, true);
     }
 
     /**

@@ -101,6 +101,9 @@ class PeintControllerTest {
             controller.widthSlider = new Slider(1, 50, 1);
             controller.widthLabel = new Label();
             controller.widthControls = new HBox(controller.widthSlider, controller.widthLabel);
+            controller.toleranceSlider = new Slider(0, 100, 0);
+            controller.toleranceLabel = new Label();
+            controller.toleranceControls = new HBox(controller.toleranceSlider, controller.toleranceLabel);
 
             controller.rootPane.resize(200, 200);
             controller.topContainer.getChildren().add(controller.toolBar);
@@ -270,6 +273,44 @@ class PeintControllerTest {
             assertFalse(controller.widthControls.isVisible());
             assertFalse(controller.widthControls.isManaged(), "hidden controls shouldn't take up toolbar space");
         });
+    }
+
+    @Test
+    void theToleranceControlsAreShownOnlyForTheFillTool() {
+        FxTestSupport.runAndWait(() -> {
+            assertFalse(controller.toleranceControls.isVisible(), "hidden while the brush is selected");
+
+            controller.onBucketFill();
+            assertTrue(controller.toleranceControls.isVisible());
+
+            controller.onEraser();
+            assertFalse(controller.toleranceControls.isVisible());
+        });
+    }
+
+    @Test
+    void theToleranceSliderStartsAtTheDefaultTolerance() {
+        assertEquals(39, Math.round(controller.toleranceSlider.getValue()), "100 of 255 is about 39 %");
+        assertEquals("39 %", controller.toleranceLabel.getText());
+    }
+
+    @Test
+    void movingTheToleranceSliderSetsTheFillTolerance() {
+        FxTestSupport.runAndWait(() -> {
+            controller.toleranceSlider.setValue(0);
+            assertEquals(0, controller.fillTool.getTolerance());
+
+            controller.toleranceSlider.setValue(100);
+            assertEquals(255, controller.fillTool.getTolerance());
+            assertEquals("100 %", controller.toleranceLabel.getText());
+        });
+    }
+
+    @Test
+    void tolerancePercentConvertsBothWays() {
+        for (int tolerance = 0; tolerance <= 255; tolerance++) {
+            assertEquals(tolerance, PeintController.fromPercent(PeintController.toPercent(tolerance)));
+        }
     }
 
     @Test

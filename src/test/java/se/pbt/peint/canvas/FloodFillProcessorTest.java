@@ -93,7 +93,7 @@ class FloodFillProcessorTest {
     void fillsPixelsWithinTheToleranceOfTheClickedColor() {
         FxTestSupport.runAndWait(() -> {
             WritableImage image = filledImage(Color.WHITE);
-            Color nearlyWhite = shadeAway(Color.WHITE, FloodFillProcessor.TOLERANCE);
+            Color nearlyWhite = shadeAway(Color.WHITE, FloodFillProcessor.DEFAULT_TOLERANCE);
             image.getPixelWriter().setColor(7, 7, nearlyWhite);
 
             fill(image, 2, 2, Color.RED);
@@ -106,13 +106,42 @@ class FloodFillProcessorTest {
     void stopsAtPixelsBeyondTheTolerance() {
         FxTestSupport.runAndWait(() -> {
             WritableImage image = filledImage(Color.WHITE);
-            Color justTooDark = shadeAway(Color.WHITE, FloodFillProcessor.TOLERANCE + 1);
+            Color justTooDark = shadeAway(Color.WHITE, FloodFillProcessor.DEFAULT_TOLERANCE + 1);
             drawBox(image, 2, 2, 7, 7, justTooDark);
 
             fill(image, 4, 4, Color.RED);
 
             assertEquals(justTooDark, color(image, 2, 4), "a pixel beyond the tolerance should be kept");
             assertEquals(Color.WHITE, color(image, 0, 0), "the fill shouldn't pass through it");
+        });
+    }
+
+    @Test
+    void zeroToleranceFillsOnlyTheExactColor() {
+        FxTestSupport.runAndWait(() -> {
+            WritableImage image = filledImage(Color.WHITE);
+            Color nearlyWhite = shadeAway(Color.WHITE, 1);
+            image.getPixelWriter().setColor(7, 7, nearlyWhite);
+
+            new FloodFillProcessor(image.getPixelReader(), image.getPixelWriter(), SIZE, SIZE, 0)
+                    .fill(2, 2, Color.RED);
+
+            assertEquals(nearlyWhite, color(image, 7, 7), "even a one-step difference should stop the fill");
+            assertEquals(Color.RED, color(image, 0, 0));
+        });
+    }
+
+    @Test
+    void maximumToleranceFillsEveryColor() {
+        FxTestSupport.runAndWait(() -> {
+            WritableImage image = filledImage(Color.WHITE);
+            drawBox(image, 2, 2, 7, 7, Color.BLACK);
+
+            new FloodFillProcessor(image.getPixelReader(), image.getPixelWriter(), SIZE, SIZE,
+                    FloodFillProcessor.MAX_TOLERANCE).fill(0, 0, Color.RED);
+
+            assertEquals(Color.RED, color(image, 2, 4), "at full tolerance the black box is filled too");
+            assertEquals(Color.RED, color(image, 4, 4), "and so is its inside");
         });
     }
 
