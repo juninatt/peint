@@ -1,11 +1,19 @@
 package se.pbt.peint.controller;
 
 import javafx.event.ActionEvent;
+import javafx.event.Event;
+import javafx.event.EventType;
+import javafx.scene.Cursor;
+import javafx.scene.Scene;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.control.Button;
 import javafx.scene.control.ColorPicker;
 import javafx.scene.control.ToolBar;
 import javafx.scene.image.WritableImage;
+import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyEvent;
+import javafx.scene.input.MouseButton;
+import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.VBox;
@@ -33,6 +41,7 @@ import java.util.function.BooleanSupplier;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -77,6 +86,12 @@ class PeintControllerTest {
             controller.rootPane.resize(200, 200);
             controller.topContainer.getChildren().add(controller.toolBar);
 
+            // Laid out like peint-view.fxml, in a scene so key events reach
+            // scene-level filters.
+            controller.canvasContainer.getChildren().add(controller.canvas);
+            controller.rootPane.setCenter(controller.canvasContainer);
+            new Scene(controller.rootPane);
+
             rootPane = controller.rootPane;
             toolBar = controller.toolBar;
 
@@ -116,6 +131,64 @@ class PeintControllerTest {
         FxTestSupport.runAndWait(() -> controller.onBucketFill());
 
         assertNotNull(controller.canvas.getOnMouseClicked());
+    }
+
+    @Test
+    void onBucketFillShowsACrosshairCursor() {
+        FxTestSupport.runAndWait(() -> controller.onBucketFill());
+
+        assertEquals(Cursor.CROSSHAIR, controller.canvas.getCursor());
+    }
+
+    @Test
+    void fillingRestoresTheCursorAndDrawingMode() {
+        FxTestSupport.runAndWait(() -> {
+            controller.onBucketFill();
+
+            fireMouse(MouseEvent.MOUSE_CLICKED, 10, 10);
+
+            assertEquals(Cursor.DEFAULT, controller.canvas.getCursor());
+            assertNull(controller.canvas.getOnMouseClicked(), "the fill should only apply once");
+            assertNotNull(controller.canvas.getOnMousePressed(), "drawing should be enabled again");
+        });
+    }
+
+    @Test
+    void escapeCancelsTheArmedFill() {
+        FxTestSupport.runAndWait(() -> {
+            controller.onBucketFill();
+
+            pressKey(KeyCode.ESCAPE);
+
+            assertEquals(Cursor.DEFAULT, controller.canvas.getCursor());
+            assertNull(controller.canvas.getOnMouseClicked(), "a click after Escape shouldn't fill");
+            assertNotNull(controller.canvas.getOnMousePressed(), "drawing should be enabled again");
+        });
+    }
+
+    @Test
+    void escapeDoesNothingOnceTheFillIsDone() {
+        FxTestSupport.runAndWait(() -> {
+            controller.onBucketFill();
+            fireMouse(MouseEvent.MOUSE_CLICKED, 10, 10);
+            controller.canvas.setCursor(Cursor.HAND);
+
+            pressKey(KeyCode.ESCAPE);
+
+            assertEquals(Cursor.HAND, controller.canvas.getCursor(), "the Escape filter should have been removed");
+        });
+    }
+
+    @Test
+    void otherKeysDoNotCancelTheArmedFill() {
+        FxTestSupport.runAndWait(() -> {
+            controller.onBucketFill();
+
+            pressKey(KeyCode.A);
+
+            assertEquals(Cursor.CROSSHAIR, controller.canvas.getCursor());
+            assertNotNull(controller.canvas.getOnMouseClicked());
+        });
     }
 
     @Test
@@ -183,6 +256,16 @@ class PeintControllerTest {
         FxTestSupport.runAndWait(() -> controller.loadImage(file));
 
         assertErrorReported("Could not open missing.png");
+    }
+
+    private void fireMouse(EventType<MouseEvent> type, double x, double y) {
+        Event.fireEvent(controller.canvas, new MouseEvent(type, x, y, x, y, MouseButton.PRIMARY, 1,
+                false, false, false, false, true, false, false, false, false, true, null));
+    }
+
+    private void pressKey(KeyCode code) {
+        Event.fireEvent(controller.canvas,
+                new KeyEvent(KeyEvent.KEY_PRESSED, "", "", code, false, false, false, false));
     }
 
     private void assertErrorReported(String expectedHeader) throws InterruptedException {
