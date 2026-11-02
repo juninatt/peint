@@ -11,7 +11,7 @@
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <junit.version>5.8.2</junit.version>
+        <junit.version>6.1.3</junit.version>
         <javafx.version>25.0.5</javafx.version>
         <ikonli.version>12.4.0</ikonli.version>
         <!-- JavaFX loads native libraries, which Java 24+ warns about unless
