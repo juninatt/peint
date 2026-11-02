@@ -6,9 +6,10 @@ Peint is a simple paint application built in JavaFX, inspired by classic Paint t
 ## Features
 - **Freehand drawing**: Click and drag on the canvas to draw, in the color chosen in the color picker.
 - **Fill**: Choose *Draw → Fill* (the cursor turns into a crosshair), then click an area to fill it with the current color. Press Escape to cancel.
-- **Undo / Redo**: Step back and forward through up to 50 changes from the *Edit* menu.
+- **Undo / Redo**: Step back and forward through up to 50 changes from the *Edit* menu (fewer on very large images, to keep memory use in check).
 - **Clear**: Wipe the canvas from the *Edit* menu (can be undone).
-- **Open / Save**: Open PNG, JPEG and BMP images onto the canvas, and save the canvas in any of those formats.
+- **Open / Save**: Open PNG, JPEG (including `.jfif` and CMYK), BMP and GIF images onto the canvas, and save the canvas as PNG, JPEG or BMP. Photos are turned upright by their EXIF orientation, and animated GIFs open as their first frame.
+- **Large images**: The canvas grows to fit an opened image, and scrolls when it is larger than the window.
 - **Movable toolbar**: Toggle the toolbar between the top and the left side of the window.
 
 
