@@ -174,9 +174,7 @@ public class PeintController {
     void onLoad() {
         FileChooser fileChooser = new FileChooser();
         fileChooser.setTitle("Open Image File");
-        fileChooser.getExtensionFilters().addAll(
-                new FileChooser.ExtensionFilter("Image Files", "*.png", "*.jpg", "*.jpeg", "*.bmp")
-        );
+        fileChooser.getExtensionFilters().add(openFilter());
 
         File selectedFile = fileChooser.showOpenDialog(canvas.getScene().getWindow());
         if (selectedFile == null) {
@@ -184,6 +182,18 @@ public class PeintController {
         }
 
         loadImage(selectedFile);
+    }
+
+    /**
+     * Returns the file filter for the Open dialog, covering every format
+     * {@link ImageFileService#load(File)} can read.
+     *
+     * <p>{@code .jfif} is a JPEG under another name, which some browsers use
+     * when saving images. GIFs open as their first frame only.</p>
+     */
+    static FileChooser.ExtensionFilter openFilter() {
+        return new FileChooser.ExtensionFilter("Image Files",
+                "*.png", "*.jpg", "*.jpeg", "*.jfif", "*.bmp", "*.gif");
     }
 
     /**

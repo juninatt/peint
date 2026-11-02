@@ -199,6 +199,37 @@ class PeintControllerTest {
     }
 
     @Test
+    void openFilterAcceptsEveryReadableFormat() {
+        assertEquals(
+                List.of("*.png", "*.jpg", "*.jpeg", "*.jfif", "*.bmp", "*.gif"),
+                PeintController.openFilter().getExtensions());
+    }
+
+    @Test
+    void loadImageOpensAGif() throws Exception {
+        File file = tempDir.resolve("blue.gif").toFile();
+        ImageIO.write(blueImage(10, 10), "gif", file);
+
+        FxTestSupport.runAndWait(() -> controller.loadImage(file));
+
+        awaitCondition(() -> Color.BLUE.equals(canvasPixel(5, 5)), "the GIF should be drawn onto the canvas");
+        assertTrue(reportedErrors.isEmpty(), "opening a GIF shouldn't report an error");
+    }
+
+    @Test
+    void loadImageOpensAJfifFile() throws Exception {
+        // A .jfif file is a JPEG under another name; JPEG colors are approximate.
+        File file = tempDir.resolve("blue.jfif").toFile();
+        ImageIO.write(blueImage(10, 10), "jpg", file);
+
+        FxTestSupport.runAndWait(() -> controller.loadImage(file));
+
+        awaitCondition(() -> canvasPixel(5, 5).getBlue() > 0.9 && canvasPixel(5, 5).getRed() < 0.1,
+                "the JFIF file should be drawn onto the canvas");
+        assertTrue(reportedErrors.isEmpty(), "opening a JFIF file shouldn't report an error");
+    }
+
+    @Test
     void defaultExtensionFallsBackToPngWithoutAFilter() {
         assertEquals("png", PeintController.defaultExtension(null));
     }
@@ -226,12 +257,7 @@ class PeintControllerTest {
     @Test
     void loadImageDrawsTheFileOntoTheCanvas() throws Exception {
         File file = tempDir.resolve("blue.png").toFile();
-        BufferedImage blue = new BufferedImage(10, 10, BufferedImage.TYPE_INT_RGB);
-        Graphics2D g = blue.createGraphics();
-        g.setColor(java.awt.Color.BLUE);
-        g.fillRect(0, 0, 10, 10);
-        g.dispose();
-        ImageIO.write(blue, "png", file);
+        ImageIO.write(blueImage(10, 10), "png", file);
 
         FxTestSupport.runAndWait(() -> controller.loadImage(file));
 
@@ -256,6 +282,15 @@ class PeintControllerTest {
         FxTestSupport.runAndWait(() -> controller.loadImage(file));
 
         assertErrorReported("Could not open missing.png");
+    }
+
+    private static BufferedImage blueImage(int width, int height) {
+        BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+        Graphics2D g = image.createGraphics();
+        g.setColor(java.awt.Color.BLUE);
+        g.fillRect(0, 0, width, height);
+        g.dispose();
+        return image;
     }
 
     private void fireMouse(EventType<MouseEvent> type, double x, double y) {
