@@ -5,11 +5,24 @@ Peint is a simple paint application built in JavaFX, inspired by classic Paint t
 
 ## Features
 - **Freehand drawing**: Click and drag on the canvas to draw, in the color chosen in the color picker.
-- **Fill**: Choose *Draw → Fill*, then click an area to fill it with the current color.
+- **Fill**: Choose *Draw → Fill* (the cursor turns into a crosshair), then click an area to fill it with the current color. Press Escape to cancel.
 - **Undo / Redo**: Step back and forward through up to 50 changes from the *Edit* menu.
 - **Clear**: Wipe the canvas from the *Edit* menu (can be undone).
 - **Open / Save**: Open PNG, JPEG and BMP images onto the canvas, and save the canvas in any of those formats.
 - **Movable toolbar**: Toggle the toolbar between the top and the left side of the window.
+
+
+## Keyboard Shortcuts
+On macOS, use Cmd instead of Ctrl.
+
+| Shortcut                    | Action        |
+|-----------------------------|---------------|
+| Ctrl+S                      | Save          |
+| Ctrl+O                      | Open          |
+| Ctrl+Z                      | Undo          |
+| Ctrl+Y or Ctrl+Shift+Z      | Redo          |
+| F                           | Fill          |
+| Escape                      | Cancel a fill |
 
 
 ## Technologies
