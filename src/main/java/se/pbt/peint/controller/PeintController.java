@@ -13,6 +13,7 @@ import javafx.scene.control.ColorPicker;
 import javafx.scene.control.ToolBar;
 import javafx.scene.image.WritableImage;
 import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyCombination;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.Pane;
@@ -39,6 +40,8 @@ import java.util.logging.Logger;
 public class PeintController {
 
     private static final Logger LOGGER = Logger.getLogger(PeintController.class.getName());
+
+    static final KeyCombination REDO_ALTERNATIVE = KeyCombination.valueOf("Shortcut+Shift+Z");
 
     @FXML
     Canvas canvas;
@@ -85,6 +88,14 @@ public class PeintController {
         colorPicker.setValue(Color.BLACK);
         canvasManager.setDrawingColor(colorPicker.getValue());
         colorPicker.setOnAction(event -> canvasManager.setDrawingColor(colorPicker.getValue()));
+
+        // The menu's Redo item can only carry one accelerator (Shortcut+Y),
+        // so the other common one is added to the scene once there is one.
+        canvas.sceneProperty().addListener((observable, oldScene, newScene) -> {
+            if (newScene != null) {
+                newScene.getAccelerators().put(REDO_ALTERNATIVE, this::onRedo);
+            }
+        });
     }
 
     /**

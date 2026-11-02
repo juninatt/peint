@@ -22,12 +22,12 @@
             <MenuBar>
                 <!-- File: save/open a whole image file -->
                 <Menu text="File">
-                    <MenuItem text="Save" onAction="#onSave">
+                    <MenuItem text="Save" onAction="#onSave" accelerator="Shortcut+S">
                         <graphic>
                             <FontIcon iconLiteral="fas-save" iconSize="16" />
                         </graphic>
                     </MenuItem>
-                    <MenuItem text="Open" onAction="#onLoad">
+                    <MenuItem text="Open" onAction="#onLoad" accelerator="Shortcut+O">
                         <graphic>
                             <FontIcon iconLiteral="fas-folder-open" iconSize="16" />
                         </graphic>
@@ -35,12 +35,12 @@
                 </Menu>
                 <!-- Edit: canvas history, not drawing tools themselves -->
                 <Menu text="Edit">
-                    <MenuItem text="Undo" onAction="#onUndo">
+                    <MenuItem text="Undo" onAction="#onUndo" accelerator="Shortcut+Z">
                         <graphic>
                             <FontIcon iconLiteral="fas-undo" iconSize="16" />
                         </graphic>
                     </MenuItem>
-                    <MenuItem text="Redo" onAction="#onRedo">
+                    <MenuItem text="Redo" onAction="#onRedo" accelerator="Shortcut+Y">
                         <graphic>
                             <FontIcon iconLiteral="fas-redo" iconSize="16" />
                         </graphic>
@@ -53,7 +53,7 @@
                 </Menu>
                 <!-- Draw: drawing tools -->
                 <Menu text="Draw">
-                    <MenuItem text="Fill" onAction="#onBucketFill">
+                    <MenuItem text="Fill" onAction="#onBucketFill" accelerator="F">
                         <graphic>
                             <FontIcon iconLiteral="fas-fill-drip" iconSize="16" />
                         </graphic>
