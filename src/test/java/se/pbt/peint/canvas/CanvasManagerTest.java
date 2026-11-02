@@ -482,6 +482,20 @@ class CanvasManagerTest {
     }
 
     @Test
+    void aWiderBrushPaintsAWiderLine() {
+        FxTestSupport.runAndWait(() -> {
+            drag(10, 30, 90, 30, 8);
+            BrushTool wide = new BrushTool();
+            wide.setWidth(12);
+            canvasManager.setTool(wide);
+            drag(10, 70, 90, 70, 8);
+
+            assertEquals(Color.WHITE, pixel(50, 34), "4px beside the default 1px line should be untouched");
+            assertTrue(pixel(50, 74).getBrightness() < 0.2, "4px beside the 12px line should be painted");
+        });
+    }
+
+    @Test
     void theBrushIsSelectedByDefault() {
         assertInstanceOf(BrushTool.class, canvasManager.getTool());
     }

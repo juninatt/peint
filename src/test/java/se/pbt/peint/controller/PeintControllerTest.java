@@ -8,6 +8,8 @@ import javafx.scene.Scene;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.control.Button;
 import javafx.scene.control.ColorPicker;
+import javafx.scene.control.Label;
+import javafx.scene.control.Slider;
 import javafx.scene.control.ToggleButton;
 import javafx.scene.control.ToggleGroup;
 import javafx.scene.control.ToolBar;
@@ -17,6 +19,7 @@ import javafx.scene.input.KeyEvent;
 import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
@@ -45,6 +48,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -94,6 +98,9 @@ class PeintControllerTest {
             controller.eraserButton.setToggleGroup(controller.toolGroup);
             controller.fillButton.setToggleGroup(controller.toolGroup);
             controller.brushButton.setSelected(true);
+            controller.widthSlider = new Slider(1, 50, 1);
+            controller.widthLabel = new Label();
+            controller.widthControls = new HBox(controller.widthSlider, controller.widthLabel);
 
             controller.rootPane.resize(200, 200);
             controller.topContainer.getChildren().add(controller.toolBar);
@@ -210,6 +217,58 @@ class PeintControllerTest {
             controller.brushButton.setSelected(false); // what clicking a selected ToggleButton does
 
             assertTrue(controller.brushButton.isSelected(), "some tool should always be selected");
+        });
+    }
+
+    @Test
+    void theWidthControlsShowTheBrushWidthAtFirst() {
+        assertTrue(controller.widthControls.isVisible());
+        assertEquals(BrushTool.DEFAULT_WIDTH, controller.widthSlider.getValue());
+        assertEquals("1 px", controller.widthLabel.getText());
+    }
+
+    @Test
+    void movingTheWidthSliderSetsTheSelectedToolsWidth() {
+        FxTestSupport.runAndWait(() -> {
+            controller.widthSlider.setValue(8);
+
+            assertEquals(8, controller.brushTool.getWidth());
+            assertEquals("8 px", controller.widthLabel.getText());
+        });
+    }
+
+    @Test
+    void eachToolKeepsItsOwnWidth() {
+        FxTestSupport.runAndWait(() -> {
+            controller.widthSlider.setValue(4);
+
+            controller.onEraser();
+            assertEquals(EraserTool.DEFAULT_WIDTH, controller.widthSlider.getValue(), "the eraser should show its own width");
+            controller.widthSlider.setValue(30);
+
+            controller.onBrush();
+            assertEquals(4, controller.widthSlider.getValue(), "the brush should keep the width it was given");
+            assertEquals(4, controller.brushTool.getWidth());
+            assertEquals(30, controller.eraserTool.getWidth());
+        });
+    }
+
+    @Test
+    void theWidthSliderSnapsToWholePixels() {
+        FxTestSupport.runAndWait(() -> {
+            controller.widthSlider.setValue(6.4);
+
+            assertEquals(6, controller.brushTool.getWidth());
+        });
+    }
+
+    @Test
+    void theWidthControlsAreHiddenForTheFillTool() {
+        FxTestSupport.runAndWait(() -> {
+            controller.onBucketFill();
+
+            assertFalse(controller.widthControls.isVisible());
+            assertFalse(controller.widthControls.isManaged(), "hidden controls shouldn't take up toolbar space");
         });
     }
 

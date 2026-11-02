@@ -9,12 +9,15 @@ import javafx.scene.canvas.Canvas;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.ColorPicker;
+import javafx.scene.control.Label;
+import javafx.scene.control.Slider;
 import javafx.scene.control.ToggleButton;
 import javafx.scene.control.ToggleGroup;
 import javafx.scene.control.ToolBar;
 import javafx.scene.image.WritableImage;
 import javafx.scene.input.KeyCombination;
 import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
@@ -30,6 +33,7 @@ import se.pbt.peint.support.ImageFileService;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
+import java.util.function.DoubleConsumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -81,9 +85,28 @@ public class PeintController {
     @FXML
     ToggleButton fillButton;
 
+    @FXML
+    HBox widthControls;
+
+    @FXML
+    Slider widthSlider;
+
+    @FXML
+    Label widthLabel;
+
     CanvasManager canvasManager;
     ToolbarManager toolbarManager;
     final ImageFileService imageFileService = new ImageFileService();
+
+    // One instance of each tool, so settings such as a width are kept while
+    // another tool is selected.
+    final BrushTool brushTool = new BrushTool();
+    final EraserTool eraserTool = new EraserTool();
+    final FillTool fillTool = new FillTool();
+
+    // Where the width slider's value goes: the selected tool's width setter,
+    // or nothing while the selected tool has no width.
+    private DoubleConsumer widthTarget = width -> { };
 
     /**
      * Initializes the controller and sets up managers for canvas and toolbar interactions.
@@ -97,6 +120,13 @@ public class PeintController {
         colorPicker.setValue(Color.BLACK);
         canvasManager.setDrawingColor(colorPicker.getValue());
         colorPicker.setOnAction(event -> canvasManager.setDrawingColor(colorPicker.getValue()));
+
+        widthSlider.valueProperty().addListener((observable, oldWidth, newWidth) -> {
+            double width = Math.round(newWidth.doubleValue());
+            widthTarget.accept(width);
+            widthLabel.setText((int) width + " px");
+        });
+        selectTool(brushTool, brushButton);
 
         // Clicking the selected tool's button would otherwise leave no tool
         // selected; keep it selected instead.
@@ -298,7 +328,7 @@ public class PeintController {
      */
     @FXML
     void onBrush() {
-        selectTool(new BrushTool(), brushButton);
+        selectTool(brushTool, brushButton);
     }
 
     /**
@@ -306,7 +336,7 @@ public class PeintController {
      */
     @FXML
     void onEraser() {
-        selectTool(new EraserTool(), eraserButton);
+        selectTool(eraserTool, eraserButton);
     }
 
     /**
@@ -315,7 +345,7 @@ public class PeintController {
      */
     @FXML
     void onBucketFill() {
-        selectTool(new FillTool(), fillButton);
+        selectTool(fillTool, fillButton);
     }
 
     /**
@@ -327,6 +357,34 @@ public class PeintController {
         canvasManager.setTool(tool);
         button.setSelected(true);
         canvas.setCursor(cursorFor(tool));
+        showWidthOf(tool);
+    }
+
+    /**
+     * Points the width slider at the given tool's width, or hides it if the
+     * tool has none.
+     */
+    private void showWidthOf(Tool tool) {
+        switch (tool) {
+            case BrushTool brush -> showWidth(brush.getWidth(), brush::setWidth);
+            case EraserTool eraser -> showWidth(eraser.getWidth(), eraser::setWidth);
+            case FillTool fill -> {
+                widthTarget = width -> { };
+                widthControls.setVisible(false);
+                widthControls.setManaged(false);
+            }
+        }
+    }
+
+    private void showWidth(double width, DoubleConsumer setter) {
+        // Detached first, so moving the slider to this tool's width doesn't
+        // write it into the previously selected tool.
+        widthTarget = value -> { };
+        widthSlider.setValue(width);
+        widthLabel.setText((int) width + " px");
+        widthTarget = setter;
+        widthControls.setVisible(true);
+        widthControls.setManaged(true);
     }
 
     /**

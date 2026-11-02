@@ -11,10 +11,25 @@ package se.pbt.peint.canvas;
  */
 public final class EraserTool implements Tool {
 
-    /** The width, in pixels, of the eraser's strokes. */
-    static final double WIDTH = 12;
+    /** The width, in pixels, the eraser starts out with. */
+    public static final double DEFAULT_WIDTH = 12;
 
     private final Stroke stroke = new Stroke();
+    private double width = DEFAULT_WIDTH;
+
+    /**
+     * @return the width, in pixels, of the eraser's strokes
+     */
+    public double getWidth() {
+        return width;
+    }
+
+    /**
+     * Sets the width, in pixels, of the eraser's strokes from the next stroke on.
+     */
+    public void setWidth(double width) {
+        this.width = width;
+    }
 
     @Override
     public void pressed(CanvasManager canvas, double x, double y) {
@@ -23,7 +38,7 @@ public final class EraserTool implements Tool {
 
     @Override
     public void dragged(CanvasManager canvas, double x, double y) {
-        stroke.continueTo(canvas, CanvasManager.BACKGROUND, WIDTH, x, y);
+        stroke.continueTo(canvas, CanvasManager.BACKGROUND, width, x, y);
     }
 
     @Override
