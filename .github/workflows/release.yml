@@ -59,19 +59,8 @@ jobs:
 
       # JavaFX ships native libraries per OS, so each platform gets its own
       # self-contained image, with a bundled Java runtime, built on that OS.
-      - name: Build runtime image
-        run: ./mvnw -B javafx:jlink
-
-      - name: Archive runtime image
-        run: |
-          name="peint-${GITHUB_REF_NAME#v}-${{ matrix.platform }}"
-          mkdir dist
-          if [ "$RUNNER_OS" = "Windows" ]; then
-            mv target/peint.zip "dist/$name.zip"
-          else
-            # tar keeps the launcher script executable, which the zip doesn't.
-            tar -czf "dist/$name.tar.gz" -C target peint
-          fi
+      - name: Build and archive runtime image
+        run: bash .github/scripts/build-image.sh "peint-${GITHUB_REF_NAME#v}-${{ matrix.platform }}"
 
       - uses: actions/upload-artifact@v7
         with:

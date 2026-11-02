@@ -94,19 +94,14 @@
                 <version>0.0.8</version>
                 <executions>
                     <execution>
-                        <!-- Default configuration for running with: mvn clean javafx:run -->
+                        <!-- For running with: mvn javafx:run. Release images are built
+                             by .github/scripts/build-image.sh with jlink directly. -->
                         <id>default-cli</id>
                         <configuration>
                             <mainClass>se.pbt.peint/se.pbt.peint.PeintApp</mainClass>
                             <options>
                                 <option>${javafx.jvm.options}</option>
                             </options>
-                            <launcher>peint</launcher>
-                            <jlinkZipName>peint</jlinkZipName>
-                            <jlinkImageName>peint</jlinkImageName>
-                            <noManPages>true</noManPages>
-                            <stripDebug>true</stripDebug>
-                            <noHeaderFiles>true</noHeaderFiles>
                         </configuration>
                     </execution>
                 </executions>
