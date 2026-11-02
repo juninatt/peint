@@ -1,5 +1,6 @@
 package se.pbt.peint.controller;
 
+import javafx.event.ActionEvent;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.control.Button;
 import javafx.scene.control.ColorPicker;
@@ -86,6 +87,21 @@ class PeintControllerTest {
     @Test
     void initializeSetsDefaultColorToBlack() {
         assertEquals(Color.BLACK, controller.colorPicker.getValue());
+    }
+
+    @Test
+    void initializePassesTheInitialColorToTheCanvas() {
+        assertEquals(Color.BLACK, controller.canvasManager.getDrawingColor());
+    }
+
+    @Test
+    void choosingAColorInThePickerSetsTheDrawingColor() {
+        FxTestSupport.runAndWait(() -> {
+            controller.colorPicker.setValue(Color.RED);
+            controller.colorPicker.fireEvent(new ActionEvent());
+
+            assertEquals(Color.RED, controller.canvasManager.getDrawingColor());
+        });
     }
 
     @Test

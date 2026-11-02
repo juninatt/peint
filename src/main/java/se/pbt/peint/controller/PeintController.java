@@ -67,7 +67,10 @@ public class PeintController {
         canvasManager = new CanvasManager(canvas, canvasContainer);
         toolbarManager = new ToolbarManager(toolBar, topContainer, rootPane, colorPicker, toggleToolbarPositionButton);
 
+        // setValue() doesn't fire the picker's action, so the initial color
+        // is passed on to the canvas explicitly.
         colorPicker.setValue(Color.BLACK);
+        canvasManager.setDrawingColor(colorPicker.getValue());
         colorPicker.setOnAction(event -> canvasManager.setDrawingColor(colorPicker.getValue()));
     }
 

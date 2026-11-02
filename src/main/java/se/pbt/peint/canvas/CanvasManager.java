@@ -231,4 +231,11 @@ public final class CanvasManager {
     public void setDrawingColor(Color color) {
         this.drawingColor = color;
     }
+
+    /**
+     * @return the color strokes are currently drawn in
+     */
+    public Color getDrawingColor() {
+        return drawingColor;
+    }
 }
