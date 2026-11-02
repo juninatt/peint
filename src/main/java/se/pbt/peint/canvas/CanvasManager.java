@@ -144,9 +144,7 @@ public final class CanvasManager {
             return;
         }
 
-        BufferedImage currentState = SwingFXUtils.fromFXImage(snapshotCanvas(), null);
-        BufferedImage previousState = history.undo(currentState);
-        gc.drawImage(SwingFXUtils.toFXImage(previousState, null), 0, 0);
+        gc.drawImage(history.undo(snapshotCanvas()), 0, 0);
     }
 
     /**
@@ -158,9 +156,7 @@ public final class CanvasManager {
             return;
         }
 
-        BufferedImage currentState = SwingFXUtils.fromFXImage(snapshotCanvas(), null);
-        BufferedImage nextState = history.redo(currentState);
-        gc.drawImage(SwingFXUtils.toFXImage(nextState, null), 0, 0);
+        gc.drawImage(history.redo(snapshotCanvas()), 0, 0);
     }
 
     /**
@@ -198,7 +194,7 @@ public final class CanvasManager {
         PixelReader pixelReader = snapshot.getPixelReader();
         PixelWriter pixelWriter = gc.getPixelWriter();
 
-        history.record(SwingFXUtils.fromFXImage(snapshot, null));
+        history.record(snapshot);
 
         FloodFillProcessor floodFillProcessor = new FloodFillProcessor(
                 pixelReader, pixelWriter, (int) canvas.getWidth(), (int) canvas.getHeight()
@@ -211,7 +207,7 @@ public final class CanvasManager {
      * can later be undone.
      */
     private void saveState() {
-        history.record(SwingFXUtils.fromFXImage(snapshotCanvas(), null));
+        history.record(snapshotCanvas());
     }
 
     /**
