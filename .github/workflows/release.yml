@@ -22,7 +22,7 @@ jobs:
       - uses: actions/setup-java@v6
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: "25"
           cache: maven
 
       - name: Check that the tag matches the project version
@@ -54,7 +54,7 @@ jobs:
       - uses: actions/setup-java@v6
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: "25"
           cache: maven
 
       # JavaFX ships native libraries per OS, so each platform gets its own

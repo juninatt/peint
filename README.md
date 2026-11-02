@@ -41,7 +41,7 @@ so nothing else needs to be installed. Unpack the archive and run `bin/peint`
 
 
 ## Requirements
-To build from source: JDK 17 or later. Maven is not required; the included Maven Wrapper downloads it.
+To build from source: JDK 25 or later. Maven is not required; the included Maven Wrapper downloads it.
 
 
 ## Building from Source

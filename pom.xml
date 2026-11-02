@@ -12,6 +12,11 @@
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <junit.version>5.8.2</junit.version>
+        <javafx.version>25.0.5</javafx.version>
+        <ikonli.version>12.4.0</ikonli.version>
+        <!-- JavaFX loads native libraries, which Java 24+ warns about unless
+             the module doing so is explicitly allowed to. -->
+        <javafx.jvm.options>--enable-native-access=javafx.graphics</javafx.jvm.options>
     </properties>
 
     <dependencies>
@@ -19,29 +24,29 @@
         <dependency>
             <groupId>org.openjfx</groupId>
             <artifactId>javafx-controls</artifactId>
-            <version>17.0.2</version>
+            <version>${javafx.version}</version>
         </dependency>
         <dependency>
             <groupId>org.openjfx</groupId>
             <artifactId>javafx-fxml</artifactId>
-            <version>17.0.2</version>
+            <version>${javafx.version}</version>
         </dependency>
         <dependency>
             <groupId>org.openjfx</groupId>
             <artifactId>javafx-swing</artifactId>
-            <version>17.0.2</version>
+            <version>${javafx.version}</version>
         </dependency>
 
         <!-- UI Libraries -->
         <dependency>
             <groupId>org.kordamp.ikonli</groupId>
             <artifactId>ikonli-javafx</artifactId>
-            <version>12.3.1</version>
+            <version>${ikonli.version}</version>
         </dependency>
         <dependency>
             <groupId>org.kordamp.ikonli</groupId>
             <artifactId>ikonli-fontawesome5-pack</artifactId>
-            <version>12.3.1</version>
+            <version>${ikonli.version}</version>
         </dependency>
 
         <!-- Testing Libraries -->
@@ -65,10 +70,17 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.10.1</version>
+                <version>3.16.0</version>
                 <configuration>
-                    <source>17</source>
-                    <target>17</target>
+                    <release>25</release>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.6.1</version>
+                <configuration>
+                    <argLine>${javafx.jvm.options}</argLine>
                 </configuration>
             </plugin>
             <plugin>
@@ -81,6 +93,9 @@
                         <id>default-cli</id>
                         <configuration>
                             <mainClass>se.pbt.peint/se.pbt.peint.PeintApp</mainClass>
+                            <options>
+                                <option>${javafx.jvm.options}</option>
+                            </options>
                             <launcher>peint</launcher>
                             <jlinkZipName>peint</jlinkZipName>
                             <jlinkImageName>peint</jlinkImageName>
