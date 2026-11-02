@@ -2,6 +2,7 @@ package se.pbt.peint.controller;
 
 import javafx.fxml.FXMLLoader;
 import javafx.geometry.Bounds;
+import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.Menu;
 import javafx.scene.control.MenuBar;
@@ -22,6 +23,7 @@ import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -86,6 +88,24 @@ class PeintViewTest {
             selectBrush.run();
 
             assertTrue(controller.brushButton.isSelected());
+        });
+    }
+
+    @Test
+    void aVerticalToolbarStaysNarrowAndKeepsEveryControlVisible() {
+        FxTestSupport.runAndWait(() -> {
+            controller.onToggleToolbarPosition();
+            root.applyCss();
+            root.layout();
+
+            // As narrow as its widest control, rather than as wide as a
+            // horizontal slider with its label beside it (about 150 px).
+            assertTrue(controller.toolBar.getWidth() < 80, "the vertical toolbar was " + controller.toolBar.getWidth() + " px wide");
+            for (Node control : List.of(controller.widthSlider, controller.colorPicker)) {
+                Bounds inToolbar = controller.toolBar.sceneToLocal(control.localToScene(control.getBoundsInLocal()));
+                assertTrue(control.getScene() != null && inToolbar.getMaxY() <= controller.toolBar.getHeight(),
+                        control + " should be in the toolbar, not its overflow menu");
+            }
         });
     }
 

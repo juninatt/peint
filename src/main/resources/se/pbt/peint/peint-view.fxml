@@ -15,6 +15,7 @@
 <?import javafx.scene.control.ToolBar?>
 <?import javafx.scene.control.Tooltip?>
 <?import javafx.scene.layout.BorderPane?>
+<?import javafx.scene.layout.GridPane?>
 <?import javafx.scene.layout.HBox?>
 <?import javafx.scene.layout.Region?>
 <?import javafx.scene.layout.VBox?>
@@ -109,24 +110,26 @@
                     </tooltip>
                 </ToggleButton>
                 <Separator />
-                <!-- The selected tool's stroke width; hidden for tools without one. -->
-                <HBox fx:id="widthControls" alignment="CENTER_LEFT" spacing="6">
+                <!-- The selected tool's stroke width; hidden for tools without one.
+                     A GridPane rather than an HBox, so ToolbarManager can move
+                     the label under the slider when the toolbar is vertical. -->
+                <GridPane fx:id="widthControls" alignment="CENTER" hgap="6" vgap="4">
                     <Slider fx:id="widthSlider" min="1" max="50" prefWidth="100">
                         <tooltip>
                             <Tooltip text="Line width" />
                         </tooltip>
                     </Slider>
-                    <Label fx:id="widthLabel" minWidth="40" />
-                </HBox>
+                    <Label fx:id="widthLabel" minWidth="40" GridPane.columnIndex="1" />
+                </GridPane>
                 <!-- The fill tool's tolerance; shown only while it is selected. -->
-                <HBox fx:id="toleranceControls" alignment="CENTER_LEFT" spacing="6">
+                <GridPane fx:id="toleranceControls" alignment="CENTER" hgap="6" vgap="4">
                     <Slider fx:id="toleranceSlider" min="0" max="100" prefWidth="100">
                         <tooltip>
                             <Tooltip text="Fill tolerance: how different a color may be and still be filled" />
                         </tooltip>
                     </Slider>
-                    <Label fx:id="toleranceLabel" minWidth="40" />
-                </HBox>
+                    <Label fx:id="toleranceLabel" minWidth="40" GridPane.columnIndex="1" />
+                </GridPane>
                 <ColorPicker fx:id="colorPicker">
                     <tooltip>
                         <Tooltip text="Select a color for drawing" />

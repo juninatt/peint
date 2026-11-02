@@ -19,7 +19,7 @@ import javafx.scene.input.KeyEvent;
 import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.BorderPane;
-import javafx.scene.layout.HBox;
+import javafx.scene.layout.GridPane;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
@@ -100,10 +100,12 @@ class PeintControllerTest {
             controller.brushButton.setSelected(true);
             controller.widthSlider = new Slider(1, 50, 1);
             controller.widthLabel = new Label();
-            controller.widthControls = new HBox(controller.widthSlider, controller.widthLabel);
+            controller.widthControls = new GridPane();
+            controller.widthControls.addRow(0, controller.widthSlider, controller.widthLabel);
             controller.toleranceSlider = new Slider(0, 100, 0);
             controller.toleranceLabel = new Label();
-            controller.toleranceControls = new HBox(controller.toleranceSlider, controller.toleranceLabel);
+            controller.toleranceControls = new GridPane();
+            controller.toleranceControls.addRow(0, controller.toleranceSlider, controller.toleranceLabel);
 
             controller.rootPane.resize(200, 200);
             controller.topContainer.getChildren().add(controller.toolBar);

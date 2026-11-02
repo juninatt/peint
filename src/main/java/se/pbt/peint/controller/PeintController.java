@@ -18,7 +18,7 @@ import javafx.scene.control.ToolBar;
 import javafx.scene.image.WritableImage;
 import javafx.scene.input.KeyCombination;
 import javafx.scene.layout.BorderPane;
-import javafx.scene.layout.HBox;
+import javafx.scene.layout.GridPane;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
@@ -88,7 +88,7 @@ public class PeintController {
     ToggleButton fillButton;
 
     @FXML
-    HBox widthControls;
+    GridPane widthControls;
 
     @FXML
     Slider widthSlider;
@@ -97,7 +97,7 @@ public class PeintController {
     Label widthLabel;
 
     @FXML
-    HBox toleranceControls;
+    GridPane toleranceControls;
 
     @FXML
     Slider toleranceSlider;
@@ -124,7 +124,8 @@ public class PeintController {
      */
     public void initialize() {
         canvasManager = new CanvasManager(canvas, canvasContainer);
-        toolbarManager = new ToolbarManager(toolBar, topContainer, rootPane, colorPicker, toggleToolbarPositionButton);
+        toolbarManager = new ToolbarManager(toolBar, topContainer, rootPane, colorPicker, toggleToolbarPositionButton,
+                widthControls, toleranceControls);
 
         // setValue() doesn't fire the picker's action, so the initial color
         // is passed on to the canvas explicitly.
