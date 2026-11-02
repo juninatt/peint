@@ -19,7 +19,8 @@ import java.util.Set;
 public class ImageFileService {
 
     /**
-     * Reads an image from the given file.
+     * Reads an image from the given file, turned upright according to its
+     * EXIF orientation (see {@link ExifOrientation}).
      *
      * @param file the file to read
      * @return the decoded image, or {@code null} if no registered reader
@@ -27,7 +28,11 @@ public class ImageFileService {
      * @throws IOException if the file cannot be read
      */
     public BufferedImage load(File file) throws IOException {
-        return ImageIO.read(file);
+        BufferedImage image = ImageIO.read(file);
+        if (image == null) {
+            return null;
+        }
+        return ExifOrientation.apply(image, ExifOrientation.read(file));
     }
 
     /**
