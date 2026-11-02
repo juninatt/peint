@@ -21,6 +21,7 @@ import javafx.scene.paint.Color;
 import javafx.stage.FileChooser;
 import se.pbt.peint.canvas.BrushTool;
 import se.pbt.peint.canvas.CanvasManager;
+import se.pbt.peint.canvas.EraserTool;
 import se.pbt.peint.canvas.FillTool;
 import se.pbt.peint.canvas.Tool;
 import se.pbt.peint.support.BackgroundTasks;
@@ -73,6 +74,9 @@ public class PeintController {
 
     @FXML
     ToggleButton brushButton;
+
+    @FXML
+    ToggleButton eraserButton;
 
     @FXML
     ToggleButton fillButton;
@@ -298,6 +302,14 @@ public class PeintController {
     }
 
     /**
+     * Selects the eraser, which erases with freehand strokes.
+     */
+    @FXML
+    void onEraser() {
+        selectTool(new EraserTool(), eraserButton);
+    }
+
+    /**
      * Selects the fill tool, which fills each clicked area until another
      * tool is chosen.
      */
@@ -325,6 +337,7 @@ public class PeintController {
     static Cursor cursorFor(Tool tool) {
         return switch (tool) {
             case BrushTool brush -> Cursor.DEFAULT;
+            case EraserTool eraser -> Cursor.DEFAULT;
             case FillTool fill -> Cursor.CROSSHAIR;
         };
     }

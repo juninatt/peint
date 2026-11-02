@@ -27,6 +27,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import se.pbt.peint.FxTestSupport;
 import se.pbt.peint.canvas.BrushTool;
+import se.pbt.peint.canvas.EraserTool;
 import se.pbt.peint.canvas.FillTool;
 
 import javax.imageio.ImageIO;
@@ -87,8 +88,10 @@ class PeintControllerTest {
             controller.toggleToolbarPositionButton = new Button();
             controller.toolGroup = new ToggleGroup();
             controller.brushButton = new ToggleButton();
+            controller.eraserButton = new ToggleButton();
             controller.fillButton = new ToggleButton();
             controller.brushButton.setToggleGroup(controller.toolGroup);
+            controller.eraserButton.setToggleGroup(controller.toolGroup);
             controller.fillButton.setToggleGroup(controller.toolGroup);
             controller.brushButton.setSelected(true);
 
@@ -182,6 +185,14 @@ class PeintControllerTest {
     }
 
     @Test
+    void onEraserSelectsTheEraser() {
+        FxTestSupport.runAndWait(() -> controller.onEraser());
+
+        assertInstanceOf(EraserTool.class, controller.canvasManager.getTool());
+        assertTrue(controller.eraserButton.isSelected());
+    }
+
+    @Test
     void escapeSelectsTheBrush() {
         FxTestSupport.runAndWait(() -> {
             controller.onBucketFill();
@@ -205,6 +216,7 @@ class PeintControllerTest {
     @Test
     void everyToolHasACursor() {
         assertEquals(Cursor.DEFAULT, PeintController.cursorFor(new BrushTool()));
+        assertEquals(Cursor.DEFAULT, PeintController.cursorFor(new EraserTool()));
         assertEquals(Cursor.CROSSHAIR, PeintController.cursorFor(new FillTool()));
     }
 

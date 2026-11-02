@@ -442,6 +442,46 @@ class CanvasManagerTest {
     }
 
     @Test
+    void theEraserErasesWhatWasDrawn() {
+        FxTestSupport.runAndWait(() -> {
+            drag(10, 50, 90, 50, 8);
+            canvasManager.setTool(new EraserTool());
+
+            drag(10, 50, 90, 50, 8); // over the same line
+
+            assertEquals(Color.WHITE, canvasPixel(50, 50), "the line should be erased to the background");
+        });
+    }
+
+    @Test
+    void theEraserIgnoresTheDrawingColor() {
+        FxTestSupport.runAndWait(() -> {
+            canvasManager.setDrawingColor(Color.RED);
+            canvasManager.loadImage(blueImage(SIZE, SIZE));
+            canvasManager.setTool(new EraserTool());
+
+            drag(10, 50, 90, 50, 8);
+
+            Color erased = canvasPixel(50, 50);
+            assertTrue(erased.getRed() > 0.9 && erased.getGreen() > 0.9 && erased.getBlue() > 0.9,
+                    "erasing should paint the white background, not the drawing color: " + erased);
+        });
+    }
+
+    @Test
+    void erasingCanBeUndone() {
+        FxTestSupport.runAndWait(() -> {
+            drag(10, 50, 90, 50, 8);
+            canvasManager.setTool(new EraserTool());
+            drag(10, 50, 90, 50, 8);
+
+            canvasManager.undo();
+
+            assertTrue(pixel(50, 50).getBrightness() < 0.9, "undo should bring the erased line back");
+        });
+    }
+
+    @Test
     void theBrushIsSelectedByDefault() {
         assertInstanceOf(BrushTool.class, canvasManager.getTool());
     }

@@ -9,7 +9,7 @@ package se.pbt.peint.canvas;
  * handles tools (such as picking a cursor for each) can switch over every
  * one of them and be checked by the compiler when a tool is added.</p>
  */
-public sealed interface Tool permits BrushTool, FillTool {
+public sealed interface Tool permits BrushTool, EraserTool, FillTool {
 
     /**
      * Called when the mouse is pressed on the canvas.

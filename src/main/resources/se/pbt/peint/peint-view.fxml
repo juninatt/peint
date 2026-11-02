@@ -51,7 +51,7 @@
                     </MenuItem>
                     <MenuItem text="Clear" onAction="#onClearCanvas">
                         <graphic>
-                            <FontIcon iconLiteral="fas-eraser" iconSize="16" />
+                            <FontIcon iconLiteral="fas-trash-alt" iconSize="16" />
                         </graphic>
                     </MenuItem>
                 </Menu>
@@ -60,6 +60,11 @@
                     <MenuItem text="Brush" onAction="#onBrush" accelerator="B">
                         <graphic>
                             <FontIcon iconLiteral="fas-paint-brush" iconSize="16" />
+                        </graphic>
+                    </MenuItem>
+                    <MenuItem text="Eraser" onAction="#onEraser" accelerator="E">
+                        <graphic>
+                            <FontIcon iconLiteral="fas-eraser" iconSize="16" />
                         </graphic>
                     </MenuItem>
                     <MenuItem text="Fill" onAction="#onBucketFill" accelerator="F">
@@ -83,6 +88,14 @@
                     </graphic>
                     <tooltip>
                         <Tooltip text="Brush (B)" />
+                    </tooltip>
+                </ToggleButton>
+                <ToggleButton fx:id="eraserButton" onAction="#onEraser" toggleGroup="$toolGroup">
+                    <graphic>
+                        <FontIcon iconLiteral="fas-eraser" iconSize="16" />
+                    </graphic>
+                    <tooltip>
+                        <Tooltip text="Eraser (E)" />
                     </tooltip>
                 </ToggleButton>
                 <ToggleButton fx:id="fillButton" onAction="#onBucketFill" toggleGroup="$toolGroup">

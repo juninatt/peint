@@ -72,6 +72,7 @@ class PeintViewTest {
         assertEquals(KeyCombination.valueOf("Shortcut+Z"), accelerators.get("Undo"));
         assertEquals(KeyCombination.valueOf("Shortcut+Y"), accelerators.get("Redo"));
         assertEquals(KeyCombination.valueOf("B"), accelerators.get("Brush"));
+        assertEquals(KeyCombination.valueOf("E"), accelerators.get("Eraser"));
         assertEquals(KeyCombination.valueOf("F"), accelerators.get("Fill"));
     }
 
