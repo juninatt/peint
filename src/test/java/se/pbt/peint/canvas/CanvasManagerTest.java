@@ -163,18 +163,45 @@ class CanvasManagerTest {
     @Test
     void loadImageDrawsTheImageAtTheTopLeftAndCanBeUndone() {
         FxTestSupport.runAndWait(() -> {
-            BufferedImage image = new BufferedImage(20, 20, BufferedImage.TYPE_INT_RGB);
-            Graphics2D g = image.createGraphics();
-            g.setColor(java.awt.Color.BLUE);
-            g.fillRect(0, 0, 20, 20);
-            g.dispose();
-
-            canvasManager.loadImage(image);
+            canvasManager.loadImage(blueImage(20, 20));
             assertEquals(Color.BLUE, pixel(10, 10));
             assertEquals(Color.WHITE, pixel(50, 50), "the canvas outside the image should be untouched");
 
             canvasManager.undo();
             assertEquals(Color.WHITE, pixel(10, 10), "undo should remove the loaded image");
+        });
+    }
+
+    @Test
+    void loadImageGrowsTheCanvasToFitALargerImage() {
+        FxTestSupport.runAndWait(() -> {
+            canvasManager.loadImage(blueImage(250, 180));
+
+            assertEquals(250, canvas.getWidth());
+            assertEquals(180, canvas.getHeight());
+            assertEquals(Color.BLUE, pixel(240, 170), "the part beyond the old canvas size should be kept");
+        });
+    }
+
+    @Test
+    void loadImageKeepsTheCanvasSizeForASmallerImage() {
+        FxTestSupport.runAndWait(() -> {
+            canvasManager.loadImage(blueImage(20, 20));
+
+            assertEquals(SIZE, canvas.getWidth());
+            assertEquals(SIZE, canvas.getHeight());
+        });
+    }
+
+    @Test
+    void undoingALoadThatGrewTheCanvasRemovesTheWholeImage() {
+        FxTestSupport.runAndWait(() -> {
+            canvasManager.loadImage(blueImage(250, 180));
+
+            canvasManager.undo();
+
+            assertEquals(Color.WHITE, pixel(50, 50));
+            assertEquals(Color.WHITE, pixel(240, 170), "the part beyond the old canvas size should be undone too");
         });
     }
 
@@ -313,6 +340,15 @@ class CanvasManagerTest {
     private void fireMouse(EventType<MouseEvent> type, double x, double y) {
         Event.fireEvent(canvas, new MouseEvent(type, x, y, x, y, MouseButton.PRIMARY, 1,
                 false, false, false, false, true, false, false, false, false, false, null));
+    }
+
+    private static BufferedImage blueImage(int width, int height) {
+        BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+        Graphics2D g = image.createGraphics();
+        g.setColor(java.awt.Color.BLUE);
+        g.fillRect(0, 0, width, height);
+        g.dispose();
+        return image;
     }
 
     /**

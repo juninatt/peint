@@ -55,8 +55,9 @@ public final class CanvasManager {
     }
 
     /**
-     * Grows the canvas to cover the parent layout, preserving its current
-     * drawing in the process. The canvas never shrinks.
+     * Grows the canvas to at least the given size, e.g. to cover the parent
+     * layout, preserving its current drawing in the process. The canvas
+     * never shrinks.
      *
      * <p>Changing a {@link Canvas}'s width or height clears its pixel content, so
      * simply binding the size properties (as this class used to) erases the
@@ -69,12 +70,12 @@ public final class CanvasManager {
      * everything outside the smaller size, so the canvas keeps its largest
      * size and the parent's clip hides whatever no longer fits.</p>
      *
-     * @param parentWidth the parent layout's new width
-     * @param parentHeight the parent layout's new height
+     * @param minWidth the width the canvas should at least have
+     * @param minHeight the height the canvas should at least have
      */
-    private void growCanvas(double parentWidth, double parentHeight) {
-        double newWidth = Math.max(canvas.getWidth(), parentWidth);
-        double newHeight = Math.max(canvas.getHeight(), parentHeight);
+    private void growCanvas(double minWidth, double minHeight) {
+        double newWidth = Math.max(canvas.getWidth(), minWidth);
+        double newHeight = Math.max(canvas.getHeight(), minHeight);
         if (newWidth <= 0 || newHeight <= 0
                 || (newWidth == canvas.getWidth() && newHeight == canvas.getHeight())) {
             return;
@@ -171,9 +172,16 @@ public final class CanvasManager {
     }
 
     /**
-     * Loads an image onto the canvas.
+     * Loads an image onto the canvas, growing the canvas first if the image
+     * is larger, so no part of the image is cut off.
+     *
+     * <p>The canvas is grown before its state is recorded for undo, so the
+     * recorded state covers the whole grown canvas. Recorded the other way
+     * around, undoing would restore a state smaller than the canvas and
+     * leave the part of the image outside it in place.</p>
      */
     public void loadImage(BufferedImage image) {
+        growCanvas(image.getWidth(), image.getHeight());
         saveState();
         gc.drawImage(SwingFXUtils.toFXImage(image, null), 0, 0);
     }
