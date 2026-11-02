@@ -19,6 +19,11 @@ import java.awt.image.BufferedImage;
  */
 public final class CanvasManager {
 
+    /**
+     * The color of the empty canvas, which erasing and clearing paint with.
+     */
+    public static final Color BACKGROUND = Color.WHITE;
+
     private final Canvas canvas;
     private final GraphicsContext gc;
     private final History history = new History();
@@ -51,6 +56,7 @@ public final class CanvasManager {
         clip.heightProperty().bind(parent.heightProperty());
         parent.setClip(clip);
 
+        fillBackground(0, 0, canvas.getWidth(), canvas.getHeight());
         enableDrawingMode();
     }
 
@@ -91,11 +97,25 @@ public final class CanvasManager {
             canvas.setWidth(newWidth);
             canvas.setHeight(newHeight);
 
+            fillBackground(0, 0, newWidth, newHeight);
             gc.drawImage(snapshot, 0, 0);
         } else {
             canvas.setWidth(newWidth);
             canvas.setHeight(newHeight);
+            fillBackground(0, 0, newWidth, newHeight);
         }
+    }
+
+    /**
+     * Paints the given area with the {@link #BACKGROUND} color.
+     *
+     * <p>The canvas is opaque rather than transparent, so that erasing can
+     * paint with the background color, and so the canvas looks the same as
+     * the images it is saved to, which are always opaque.</p>
+     */
+    private void fillBackground(double x, double y, double width, double height) {
+        gc.setFill(BACKGROUND);
+        gc.fillRect(x, y, width, height);
     }
 
     /**
@@ -164,7 +184,7 @@ public final class CanvasManager {
      */
     public void clearCanvas() {
         saveState();
-        gc.clearRect(0, 0, canvas.getWidth(), canvas.getHeight());
+        fillBackground(0, 0, canvas.getWidth(), canvas.getHeight());
     }
 
     /**

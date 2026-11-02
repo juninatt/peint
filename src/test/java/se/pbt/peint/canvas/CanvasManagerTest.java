@@ -2,6 +2,7 @@ package se.pbt.peint.canvas;
 
 import javafx.event.Event;
 import javafx.event.EventType;
+import javafx.scene.SnapshotParameters;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.image.PixelReader;
 import javafx.scene.image.WritableImage;
@@ -44,6 +45,41 @@ class CanvasManagerTest {
             container = new Pane(canvas);
             canvasManager = new CanvasManager(canvas, container);
             canvasManager.setDrawingColor(Color.BLACK);
+        });
+    }
+
+    @Test
+    void newCanvasIsOpaqueWhite() {
+        FxTestSupport.runAndWait(() ->
+                assertEquals(Color.WHITE, canvasPixel(50, 50), "the empty canvas should be white, not transparent"));
+    }
+
+    @Test
+    void areaAddedByGrowingIsOpaqueWhite() {
+        FxTestSupport.runAndWait(() -> {
+            container.resize(200, 150);
+
+            assertEquals(Color.WHITE, canvasPixel(180, 140));
+        });
+    }
+
+    @Test
+    void clearCanvasLeavesAnOpaqueWhiteCanvas() {
+        FxTestSupport.runAndWait(() -> {
+            drag(10, 50, 90, 50, 8);
+
+            canvasManager.clearCanvas();
+
+            assertEquals(Color.WHITE, canvasPixel(50, 50));
+        });
+    }
+
+    @Test
+    void transparentPartsOfALoadedImageShowTheWhiteBackground() {
+        FxTestSupport.runAndWait(() -> {
+            canvasManager.loadImage(new BufferedImage(20, 20, BufferedImage.TYPE_INT_ARGB)); // fully transparent
+
+            assertEquals(Color.WHITE, canvasPixel(10, 10));
         });
     }
 
@@ -379,6 +415,18 @@ class CanvasManagerTest {
      */
     private Color pixel(int x, int y) {
         return snapshot().getPixelReader().getColor(x, y);
+    }
+
+    /**
+     * Reads one pixel of the canvas itself, without the white background a
+     * default snapshot adds, so transparent pixels read as transparent.
+     */
+    private Color canvasPixel(int x, int y) {
+        SnapshotParameters transparent = new SnapshotParameters();
+        transparent.setFill(Color.TRANSPARENT);
+        WritableImage snapshot = new WritableImage((int) canvas.getWidth(), (int) canvas.getHeight());
+        canvas.snapshot(transparent, snapshot);
+        return snapshot.getPixelReader().getColor(x, y);
     }
 
     private WritableImage snapshot() {
