@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 import se.pbt.peint.FxTestSupport;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.fail;
 
 class FloodFillProcessorTest {
 
@@ -86,14 +87,54 @@ class FloodFillProcessorTest {
         });
     }
 
+    @Test
+    void fillsALargeImageCompletely() {
+        FxTestSupport.runAndWait(() -> {
+            // Big enough that queueing pixels more than once, as the fill
+            // used to, would mean millions of extra queue entries.
+            int width = 1600;
+            int height = 1000;
+            WritableImage image = filledImage(width, height, Color.WHITE);
+
+            new FloodFillProcessor(image.getPixelReader(), image.getPixelWriter(), width, height)
+                    .fill(width / 2.0, height / 2.0, Color.RED);
+
+            int red = image.getPixelReader().getArgb(0, 0);
+            assertEquals(Color.RED, color(image, 0, 0));
+            for (int x = 0; x < width; x++) {
+                for (int y = 0; y < height; y++) {
+                    if (image.getPixelReader().getArgb(x, y) != red) {
+                        fail("pixel " + x + "," + y + " wasn't filled");
+                    }
+                }
+            }
+        });
+    }
+
+    @Test
+    void ignoresAStartPointOutsideTheImage() {
+        FxTestSupport.runAndWait(() -> {
+            WritableImage image = filledImage(Color.WHITE);
+
+            fill(image, -1, 5, Color.RED);
+            fill(image, 5, SIZE, Color.RED);
+
+            assertEquals(Color.WHITE, color(image, 5, 5));
+        });
+    }
+
     private static void fill(WritableImage image, double x, double y, Color newColor) {
         new FloodFillProcessor(image.getPixelReader(), image.getPixelWriter(), SIZE, SIZE).fill(x, y, newColor);
     }
 
     private static WritableImage filledImage(Color color) {
-        WritableImage image = new WritableImage(SIZE, SIZE);
-        for (int x = 0; x < SIZE; x++) {
-            for (int y = 0; y < SIZE; y++) {
+        return filledImage(SIZE, SIZE, color);
+    }
+
+    private static WritableImage filledImage(int width, int height, Color color) {
+        WritableImage image = new WritableImage(width, height);
+        for (int x = 0; x < width; x++) {
+            for (int y = 0; y < height; y++) {
                 image.getPixelWriter().setColor(x, y, color);
             }
         }

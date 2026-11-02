@@ -4,10 +4,6 @@ import javafx.scene.image.PixelReader;
 import javafx.scene.image.PixelWriter;
 import javafx.scene.paint.Color;
 
-import java.awt.Point;
-import java.util.LinkedList;
-import java.util.Queue;
-
 /**
  * Performs flood fill operations on a canvas.
  *
@@ -35,58 +31,80 @@ public class FloodFillProcessor {
      *
      * <p>The algorithm replaces all connected pixels of the same initial color
      * with the specified new color.</p>
+     *
+     * <p>Each pixel is marked as visited when it is queued rather than when it
+     * is filled, so no pixel enters the queue more than once. Queued pixels
+     * are stored as their index ({@code y * width + x}) in a plain
+     * {@code int} array, so even a fill covering the whole canvas allocates
+     * just one array of {@code width * height} ints.</p>
      */
     public void fill(double startX, double startY, Color newColor) {
-        Color targetColor = pixelReader.getColor((int) startX, (int) startY);
-
-        if (newColor.equals(targetColor)) {
+        int x0 = (int) startX;
+        int y0 = (int) startY;
+        if (!isInside(x0, y0)) {
             return;
         }
 
-        boolean[][] visited = new boolean[canvasWidth][canvasHeight];
-        Queue<Point> queue = new LinkedList<>();
-        queue.add(new Point((int) startX, (int) startY));
+        int targetArgb = pixelReader.getArgb(x0, y0);
+        int newArgb = toArgb(newColor);
+        if (newArgb == targetArgb) {
+            return;
+        }
 
-        while (!queue.isEmpty()) {
-            Point point = queue.poll();
-            int x = point.x;
-            int y = point.y;
+        boolean[] queued = new boolean[canvasWidth * canvasHeight];
+        int[] queue = new int[canvasWidth * canvasHeight];
+        int head = 0;
+        int tail = 0;
 
-            if (shouldSkipPixel(x, y, visited, targetColor)) {
-                continue;
-            }
+        int startIndex = y0 * canvasWidth + x0;
+        queued[startIndex] = true;
+        queue[tail++] = startIndex;
 
-            fillPixel(x, y, newColor, visited);
-            enqueueNeighbors(queue, x, y);
+        while (head < tail) {
+            int index = queue[head++];
+            int x = index % canvasWidth;
+            int y = index / canvasWidth;
+
+            pixelWriter.setArgb(x, y, newArgb);
+
+            tail = enqueueIfMatching(x + 1, y, targetArgb, queue, tail, queued); // Right
+            tail = enqueueIfMatching(x - 1, y, targetArgb, queue, tail, queued); // Left
+            tail = enqueueIfMatching(x, y + 1, targetArgb, queue, tail, queued); // Down
+            tail = enqueueIfMatching(x, y - 1, targetArgb, queue, tail, queued); // Up
         }
     }
 
     /**
-     * Checks if a pixel should be skipped during processing.
+     * Adds a pixel to the queue if it is on the canvas, not already queued,
+     * and part of the area being filled.
+     *
+     * @return the queue's new tail
      */
-    private boolean shouldSkipPixel(int x, int y, boolean[][] visited, Color targetColor) {
-        if (x < 0 || x >= canvasWidth || y < 0 || y >= canvasHeight || visited[x][y]) {
-            return true;
+    private int enqueueIfMatching(int x, int y, int targetArgb, int[] queue, int tail, boolean[] queued) {
+        if (!isInside(x, y)) {
+            return tail;
         }
-        Color currentColor = pixelReader.getColor(x, y);
-        return !currentColor.equals(targetColor);
+        int index = y * canvasWidth + x;
+        if (queued[index] || pixelReader.getArgb(x, y) != targetArgb) {
+            return tail;
+        }
+        queued[index] = true;
+        queue[tail] = index;
+        return tail + 1;
+    }
+
+    private boolean isInside(int x, int y) {
+        return x >= 0 && x < canvasWidth && y >= 0 && y < canvasHeight;
     }
 
     /**
-     * Fills a single pixel with the new color and marks it as visited.
+     * Converts a color to the packed 32-bit ARGB format used by
+     * {@link PixelReader#getArgb} and {@link PixelWriter#setArgb}.
      */
-    private void fillPixel(int x, int y, Color newColor, boolean[][] visited) {
-        pixelWriter.setColor(x, y, newColor);
-        visited[x][y] = true;
-    }
-
-    /**
-     * Adds the neighboring pixels (up, down, left, right) to the processing queue.
-     */
-    private void enqueueNeighbors(Queue<Point> queue, int x, int y) {
-        queue.add(new Point(x + 1, y)); // Right
-        queue.add(new Point(x - 1, y)); // Left
-        queue.add(new Point(x, y + 1)); // Down
-        queue.add(new Point(x, y - 1)); // Up
+    private static int toArgb(Color color) {
+        return (int) Math.round(color.getOpacity() * 255) << 24
+                | (int) Math.round(color.getRed() * 255) << 16
+                | (int) Math.round(color.getGreen() * 255) << 8
+                | (int) Math.round(color.getBlue() * 255);
     }
 }
