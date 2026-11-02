@@ -1,10 +1,10 @@
 package se.pbt.peint.canvas;
 
 import javafx.embed.swing.SwingFXUtils;
+import javafx.geometry.Rectangle2D;
+import javafx.scene.SnapshotParameters;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
-import javafx.scene.image.PixelReader;
-import javafx.scene.image.PixelWriter;
 import javafx.scene.image.WritableImage;
 import javafx.scene.layout.Region;
 import javafx.scene.paint.Color;
@@ -33,6 +33,13 @@ public final class CanvasManager {
     // The mouse position the current stroke's next segment starts from.
     private double lastX;
     private double lastY;
+
+    // The area the current stroke has painted in so far, or null before its
+    // first segment.
+    private Rectangle2D strokeBounds;
+
+    // The canvas as it was when the current edit began; see beginEdit().
+    private WritableImage editBefore;
 
     /**
      * Creates a new CanvasManager to manage the specified canvas and its parent layout.
@@ -126,26 +133,32 @@ public final class CanvasManager {
      * only the new segment, rather than extending and re-stroking a single
      * path, keeps long strokes fast and stops their antialiased edges from
      * being drawn over and over, which made them thicker and darker.
+     * Releasing the mouse records the stroke for undo, covering only the
+     * rectangle it was drawn in.
      * Safe to call repeatedly, e.g. to restore drawing mode after another tool
      * (such as bucket fill) has temporarily taken over the canvas's mouse handlers.</p>
      */
     public void enableDrawingMode() {
         canvas.setOnMousePressed(event -> {
-            saveState();
+            beginEdit();
             lastX = event.getX();
             lastY = event.getY();
+            strokeBounds = null;
         });
 
         canvas.setOnMouseDragged(event -> {
             gc.setStroke(drawingColor);
             gc.strokeLine(lastX, lastY, event.getX(), event.getY());
+            strokeBounds = union(strokeBounds, segmentBounds(lastX, lastY, event.getX(), event.getY()));
             lastX = event.getX();
             lastY = event.getY();
         });
+
+        canvas.setOnMouseReleased(event -> commitEdit(strokeBounds));
     }
 
     /**
-     * Disables freehand drawing on the canvas by removing its press/drag handlers.
+     * Disables freehand drawing on the canvas by removing its mouse handlers.
      *
      * <p>Used while another tool (such as bucket fill) is temporarily armed and
      * waiting for a click, so that a press-and-drag doesn't also draw a stray line.</p>
@@ -153,81 +166,130 @@ public final class CanvasManager {
     public void disableDrawingMode() {
         canvas.setOnMousePressed(null);
         canvas.setOnMouseDragged(null);
+        canvas.setOnMouseReleased(null);
     }
 
     /**
-     * Undoes the last action on the canvas by moving back to the previous
-     * state recorded in the {@link History}.
+     * Undoes the last action on the canvas, by drawing the changed rectangle
+     * back the way it was before.
      */
     public void undo() {
-        if (!history.canUndo()) {
-            return;
+        Edit edit = history.undo();
+        if (edit != null) {
+            gc.drawImage(edit.before(), edit.x(), edit.y());
         }
-
-        gc.drawImage(history.undo(snapshotCanvas()), 0, 0);
     }
 
     /**
-     * Redoes the last undone action on the canvas by reapplying the next
-     * state recorded in the {@link History}.
+     * Redoes the last undone action on the canvas, by drawing the changed
+     * rectangle back the way it was after.
      */
     public void redo() {
-        if (!history.canRedo()) {
-            return;
+        Edit edit = history.redo();
+        if (edit != null) {
+            gc.drawImage(edit.after(), edit.x(), edit.y());
         }
-
-        gc.drawImage(history.redo(snapshotCanvas()), 0, 0);
     }
 
     /**
      * Clears all drawings from the canvas.
      */
     public void clearCanvas() {
-        saveState();
+        beginEdit();
         fillBackground(0, 0, canvas.getWidth(), canvas.getHeight());
+        commitEdit(new Rectangle2D(0, 0, canvas.getWidth(), canvas.getHeight()));
     }
 
     /**
      * Loads an image onto the canvas, growing the canvas first if the image
      * is larger, so no part of the image is cut off.
      *
-     * <p>The canvas is grown before its state is recorded for undo, so the
-     * recorded state covers the whole grown canvas. Recorded the other way
-     * around, undoing would restore a state smaller than the canvas and
-     * leave the part of the image outside it in place.</p>
+     * <p>The canvas is grown before the edit begins, so the edit's before
+     * image covers the area the loaded image is drawn over in full.</p>
      */
     public void loadImage(BufferedImage image) {
         growCanvas(image.getWidth(), image.getHeight());
-        saveState();
+        beginEdit();
         gc.drawImage(SwingFXUtils.toFXImage(image, null), 0, 0);
+        commitEdit(new Rectangle2D(0, 0, image.getWidth(), image.getHeight()));
     }
 
     /**
      * Fills an area on the canvas with a new color using {@link FloodFillProcessor}.
      *
-     * <p>Takes a single snapshot of the canvas, used both as the flood fill's
-     * pixel source and as the state recorded for undo.</p>
+     * <p>The snapshot taken to begin the edit doubles as the flood fill's
+     * pixel source, and only the bounds of the filled pixels are recorded.</p>
      */
     public void bucketFill(double startX, double startY, Color newColor) {
-        WritableImage snapshot = snapshotCanvas();
-
-        PixelReader pixelReader = snapshot.getPixelReader();
-        PixelWriter pixelWriter = gc.getPixelWriter();
-
-        history.record(snapshot);
+        WritableImage before = beginEdit();
 
         FloodFillProcessor floodFillProcessor = new FloodFillProcessor(
-                pixelReader, pixelWriter, (int) canvas.getWidth(), (int) canvas.getHeight()
+                before.getPixelReader(), gc.getPixelWriter(), (int) before.getWidth(), (int) before.getHeight()
         );
-        floodFillProcessor.fill(startX, startY, newColor);
+        commitEdit(floodFillProcessor.fill(startX, startY, newColor));
     }
 
     /**
-     * Records the current state of the canvas in the {@link History} so it
-     * can later be undone.
+     * Starts an undoable change, by taking a snapshot of the canvas as it is
+     * before the change. {@link #commitEdit(Rectangle2D)} then records the
+     * part of it that changed.
+     *
+     * @return the snapshot of the canvas before the change
      */
-    private void saveState() {
-        history.record(snapshotCanvas());
+    private WritableImage beginEdit() {
+        editBefore = snapshotCanvas();
+        return editBefore;
+    }
+
+    /**
+     * Finishes the change started by {@link #beginEdit()}, recording the
+     * given rectangle as it was before and is now.
+     *
+     * @param changed the rectangle the change touched, or {@code null} if
+     *                nothing changed, in which case nothing is recorded
+     */
+    private void commitEdit(Rectangle2D changed) {
+        WritableImage before = editBefore;
+        editBefore = null;
+        if (before == null || changed == null) {
+            return;
+        }
+
+        // Whole pixels covering the changed rectangle, within the canvas.
+        int x = Math.max(0, (int) Math.floor(changed.getMinX()));
+        int y = Math.max(0, (int) Math.floor(changed.getMinY()));
+        int maxX = Math.min((int) before.getWidth(), (int) Math.ceil(changed.getMaxX()));
+        int maxY = Math.min((int) before.getHeight(), (int) Math.ceil(changed.getMaxY()));
+        if (maxX <= x || maxY <= y) {
+            return;
+        }
+        int width = maxX - x;
+        int height = maxY - y;
+
+        WritableImage beforeRegion = new WritableImage(before.getPixelReader(), x, y, width, height);
+        history.record(new Edit(x, y, beforeRegion, snapshotRegion(x, y, width, height)));
+    }
+
+    /**
+     * Returns the rectangle a stroke segment can paint in: the segment's
+     * bounding box, widened by the line width and a pixel of antialiasing.
+     */
+    private Rectangle2D segmentBounds(double x1, double y1, double x2, double y2) {
+        double margin = gc.getLineWidth() / 2 + 1;
+        double minX = Math.min(x1, x2) - margin;
+        double minY = Math.min(y1, y2) - margin;
+        return new Rectangle2D(minX, minY, Math.abs(x2 - x1) + 2 * margin, Math.abs(y2 - y1) + 2 * margin);
+    }
+
+    private static Rectangle2D union(Rectangle2D a, Rectangle2D b) {
+        if (a == null) {
+            return b;
+        }
+        double minX = Math.min(a.getMinX(), b.getMinX());
+        double minY = Math.min(a.getMinY(), b.getMinY());
+        double maxX = Math.max(a.getMaxX(), b.getMaxX());
+        double maxY = Math.max(a.getMaxY(), b.getMaxY());
+        return new Rectangle2D(minX, minY, maxX - minX, maxY - minY);
     }
 
     /**
@@ -240,12 +302,30 @@ public final class CanvasManager {
     }
 
     /**
+     * Takes a snapshot of one rectangle of the canvas.
+     */
+    private WritableImage snapshotRegion(int x, int y, int width, int height) {
+        SnapshotParameters parameters = new SnapshotParameters();
+        parameters.setViewport(new Rectangle2D(x, y, width, height));
+        WritableImage snapshot = new WritableImage(width, height);
+        canvas.snapshot(parameters, snapshot);
+        return snapshot;
+    }
+
+    /**
      * Sets the drawing color for the canvas.
      *
      * @param color the new drawing color
      */
     public void setDrawingColor(Color color) {
         this.drawingColor = color;
+    }
+
+    /**
+     * @return the undo/redo history, for inspecting what edits record
+     */
+    History history() {
+        return history;
     }
 
     /**

@@ -1,5 +1,6 @@
 package se.pbt.peint.canvas;
 
+import javafx.geometry.Rectangle2D;
 import javafx.scene.image.PixelReader;
 import javafx.scene.image.PixelWriter;
 import javafx.scene.paint.Color;
@@ -51,19 +52,27 @@ public class FloodFillProcessor {
      * are stored as their index ({@code y * width + x}) in a plain
      * {@code int} array, so even a fill covering the whole canvas allocates
      * just one array of {@code width * height} ints.</p>
+     *
+     * @return the bounds of the pixels that were filled, or {@code null} if
+     *         none were, e.g. because the area already had the new color
      */
-    public void fill(double startX, double startY, Color newColor) {
+    public Rectangle2D fill(double startX, double startY, Color newColor) {
         int x0 = (int) startX;
         int y0 = (int) startY;
         if (!isInside(x0, y0)) {
-            return;
+            return null;
         }
 
         int targetArgb = pixelReader.getArgb(x0, y0);
         int newArgb = toArgb(newColor);
         if (newArgb == targetArgb) {
-            return;
+            return null;
         }
+
+        int minX = x0;
+        int minY = y0;
+        int maxX = x0;
+        int maxY = y0;
 
         boolean[] queued = new boolean[canvasWidth * canvasHeight];
         int[] queue = new int[canvasWidth * canvasHeight];
@@ -80,12 +89,18 @@ public class FloodFillProcessor {
             int y = index / canvasWidth;
 
             pixelWriter.setArgb(x, y, newArgb);
+            minX = Math.min(minX, x);
+            minY = Math.min(minY, y);
+            maxX = Math.max(maxX, x);
+            maxY = Math.max(maxY, y);
 
             tail = enqueueIfMatching(x + 1, y, targetArgb, queue, tail, queued); // Right
             tail = enqueueIfMatching(x - 1, y, targetArgb, queue, tail, queued); // Left
             tail = enqueueIfMatching(x, y + 1, targetArgb, queue, tail, queued); // Down
             tail = enqueueIfMatching(x, y - 1, targetArgb, queue, tail, queued); // Up
         }
+
+        return new Rectangle2D(minX, minY, maxX - minX + 1, maxY - minY + 1);
     }
 
     /**

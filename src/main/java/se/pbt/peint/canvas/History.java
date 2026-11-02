@@ -1,155 +1,132 @@
 package se.pbt.peint.canvas;
 
-import javafx.scene.image.Image;
-
 import java.util.ArrayDeque;
 import java.util.Deque;
 
 /**
- * A bounded undo/redo history of canvas states.
+ * A bounded undo/redo history of canvas {@link Edit}s.
  *
- * <p>Recording a new state clears the redo history, since redoing something
+ * <p>Recording a new edit clears the redo history, since redoing something
  * that predates a new action no longer makes sense.</p>
  *
- * <p>Every state is a full snapshot of the canvas, so the history is bounded
- * both by a number of states and by the memory they take up together, undo
- * and redo states alike. The step limit is what applies for an ordinary
- * window-sized canvas; the memory limit takes over for large canvases, such
- * as an opened photo, where a single state can take tens of megabytes. When
- * either limit is exceeded, the oldest undo states are discarded first. The
- * most recent state is always kept, even if it alone exceeds the memory
- * limit, so the last action can still be undone.</p>
+ * <p>The history is bounded both by a number of edits and by the memory they
+ * take up together, undo and redo edits alike. An edit only holds the
+ * rectangle it changed, so the step limit is what usually applies; the
+ * memory limit takes over for edits covering a large canvas, such as filling
+ * or clearing an opened photo. When either limit is exceeded, the oldest undo
+ * edits are discarded first. The most recent edit is always kept, even if it
+ * alone exceeds the memory limit, so the last action can still be undone.</p>
  */
 public class History {
 
     /**
-     * The default maximum number of states kept on the undo history.
+     * The default maximum number of edits kept on the undo history.
      */
-    static final int MAX_STATES = 50;
+    static final int MAX_EDITS = 50;
 
     /**
-     * The default maximum memory, in bytes, all recorded states may take up
+     * The default maximum memory, in bytes, all recorded edits may take up
      * together.
      */
     static final long MAX_BYTES = 256L * 1024 * 1024;
 
-    private final int maxStates;
+    private final int maxEdits;
     private final long maxBytes;
 
-    private final Deque<Image> undoStack = new ArrayDeque<>();
-    private final Deque<Image> redoStack = new ArrayDeque<>();
+    private final Deque<Edit> undoStack = new ArrayDeque<>();
+    private final Deque<Edit> redoStack = new ArrayDeque<>();
     private long totalBytes;
 
     /**
      * Creates a history with the default limits.
      */
     public History() {
-        this(MAX_STATES, MAX_BYTES);
+        this(MAX_EDITS, MAX_BYTES);
     }
 
     /**
      * Creates a history with the given limits.
      *
-     * @param maxStates the maximum number of states kept on the undo history
-     * @param maxBytes the maximum memory, in bytes, all states may take up together
+     * @param maxEdits the maximum number of edits kept on the undo history
+     * @param maxBytes the maximum memory, in bytes, all edits may take up together
      */
-    History(int maxStates, long maxBytes) {
-        this.maxStates = maxStates;
+    History(int maxEdits, long maxBytes) {
+        this.maxEdits = maxEdits;
         this.maxBytes = maxBytes;
     }
 
     /**
-     * Records a new state, making it available to undo, and clears the
-     * redo history since it no longer applies once a new action is taken.
+     * Records a new edit, making it available to undo, and clears the redo
+     * history since it no longer applies once a new action is taken.
      *
-     * @param state the state to record
+     * @param edit the edit to record
      */
-    public void record(Image state) {
+    void record(Edit edit) {
         while (!redoStack.isEmpty()) {
-            totalBytes -= sizeOf(redoStack.pop());
+            totalBytes -= redoStack.pop().bytes();
         }
-        pushUndo(state);
+        undoStack.push(edit);
+        totalBytes += edit.bytes();
         trim();
     }
 
     /**
-     * Moves back to the previous state, if any, pushing the current one
-     * onto the redo history so it can be reapplied later.
+     * Takes the most recent edit off the undo history and makes it available
+     * to redo.
      *
-     * @param currentState the state being moved away from
-     * @return the previous state, or {@code null} if there is nothing to undo
+     * @return the edit to revert, by drawing its {@link Edit#before()} image
+     *         back in place, or {@code null} if there is nothing to undo
      */
-    public Image undo(Image currentState) {
+    Edit undo() {
         if (undoStack.isEmpty()) return null;
-        Image previousState = popUndo();
-        redoStack.push(currentState);
-        totalBytes += sizeOf(currentState);
-        trim();
-        return previousState;
+        Edit edit = undoStack.pop();
+        redoStack.push(edit);
+        return edit;
     }
 
     /**
-     * Reapplies the most recently undone state, if any, pushing the
-     * current one back onto the undo history.
+     * Takes the most recently undone edit off the redo history and makes it
+     * available to undo again.
      *
-     * @param currentState the state being moved away from
-     * @return the next state, or {@code null} if there is nothing to redo
+     * @return the edit to reapply, by drawing its {@link Edit#after()} image
+     *         back in place, or {@code null} if there is nothing to redo
      */
-    public Image redo(Image currentState) {
+    Edit redo() {
         if (redoStack.isEmpty()) return null;
-        Image nextState = redoStack.pop();
-        totalBytes -= sizeOf(nextState);
-        pushUndo(currentState);
+        Edit edit = redoStack.pop();
+        undoStack.push(edit);
         trim();
-        return nextState;
+        return edit;
     }
 
     /**
-     * @return {@code true} if {@link #undo(Image)} has a state to move to
+     * @return {@code true} if {@link #undo()} has an edit to revert
      */
     public boolean canUndo() { return !undoStack.isEmpty(); }
 
     /**
-     * @return {@code true} if {@link #redo(Image)} has a state to move to
+     * @return {@code true} if {@link #redo()} has an edit to reapply
      */
     public boolean canRedo() { return !redoStack.isEmpty(); }
 
     /**
-     * @return the number of states currently available to undo
+     * @return the number of edits currently available to undo
      */
     int undoCount() { return undoStack.size(); }
 
     /**
-     * @return the memory, in bytes, all recorded states take up together
+     * @return the memory, in bytes, all recorded edits take up together
      */
     long totalBytes() { return totalBytes; }
 
-    private void pushUndo(Image state) {
-        undoStack.push(state);
-        totalBytes += sizeOf(state);
-    }
-
-    private Image popUndo() {
-        Image state = undoStack.pop();
-        totalBytes -= sizeOf(state);
-        return state;
-    }
-
     /**
-     * Discards the oldest undo states until both limits are met again,
-     * always keeping at least one state overall.
+     * Discards the oldest undo edits until both limits are met again,
+     * always keeping at least one edit overall.
      */
     private void trim() {
-        while (undoStack.size() > maxStates
+        while (undoStack.size() > maxEdits
                 || (totalBytes > maxBytes && undoStack.size() + redoStack.size() > 1 && !undoStack.isEmpty())) {
-            totalBytes -= sizeOf(undoStack.removeLast());
+            totalBytes -= undoStack.removeLast().bytes();
         }
-    }
-
-    /**
-     * Estimates the memory a state takes up: four bytes (ARGB) per pixel.
-     */
-    private static long sizeOf(Image state) {
-        return (long) state.getWidth() * (long) state.getHeight() * 4;
     }
 }

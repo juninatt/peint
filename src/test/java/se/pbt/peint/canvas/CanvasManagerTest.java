@@ -24,6 +24,7 @@ import java.io.InputStream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 class CanvasManagerTest {
 
@@ -149,6 +150,63 @@ class CanvasManagerTest {
             canvasManager.redo();
 
             assertTrue(pixel(50, 50).getBrightness() < 0.9, "redo should bring the stroke back");
+        });
+    }
+
+    @Test
+    void aStrokeRecordsOnlyTheRectangleItWasDrawnIn() {
+        FxTestSupport.runAndWait(() -> {
+            container.resize(1000, 1000);
+            drag(600, 700, 640, 700, 4);
+
+            // A 40px horizontal stroke: about 44x4 pixels, before and after,
+            // rather than two copies of the whole 1000x1000 canvas.
+            long bytes = canvasManager.history().totalBytes();
+            assertTrue(bytes < 2 * 50 * 10 * 4, "the stroke's edit took " + bytes + " bytes");
+        });
+    }
+
+    @Test
+    void undoAndRedoOfAStrokeAwayFromTheCornerRestoreItsPixelsExactly() {
+        FxTestSupport.runAndWait(() -> {
+            drag(10, 20, 40, 20, 4); // an earlier stroke that must stay put
+            WritableImage beforeStroke = snapshot();
+            drag(55, 70, 90, 85, 6);
+            WritableImage afterStroke = snapshot();
+
+            canvasManager.undo();
+            assertSameImage(beforeStroke, snapshot(), "undo should restore exactly the canvas before the stroke");
+
+            canvasManager.redo();
+            assertSameImage(afterStroke, snapshot(), "redo should restore exactly the canvas after the stroke");
+        });
+    }
+
+    @Test
+    void aPressWithoutDraggingRecordsNothing() {
+        FxTestSupport.runAndWait(() -> {
+            fireMouse(MouseEvent.MOUSE_PRESSED, 50, 50);
+            fireMouse(MouseEvent.MOUSE_RELEASED, 50, 50);
+
+            assertEquals(0, canvasManager.history().undoCount());
+        });
+    }
+
+    @Test
+    void bucketFillRecordsOnlyTheFilledArea() {
+        FxTestSupport.runAndWait(() -> {
+            container.resize(1000, 1000);
+            // A closed 20x20 box; filling inside it should record about that much.
+            drag(500, 500, 520, 500, 2);
+            drag(520, 500, 520, 520, 2);
+            drag(520, 520, 500, 520, 2);
+            drag(500, 520, 500, 500, 2);
+            long beforeFill = canvasManager.history().totalBytes();
+
+            canvasManager.bucketFill(510, 510, Color.RED);
+
+            long fillBytes = canvasManager.history().totalBytes() - beforeFill;
+            assertTrue(fillBytes <= 2 * 20 * 20 * 4, "the fill's edit took " + fillBytes + " bytes");
         });
     }
 
@@ -427,6 +485,21 @@ class CanvasManagerTest {
         WritableImage snapshot = new WritableImage((int) canvas.getWidth(), (int) canvas.getHeight());
         canvas.snapshot(transparent, snapshot);
         return snapshot.getPixelReader().getColor(x, y);
+    }
+
+    private static void assertSameImage(WritableImage expected, WritableImage actual, String message) {
+        assertEquals(expected.getWidth(), actual.getWidth(), message);
+        assertEquals(expected.getHeight(), actual.getHeight(), message);
+        for (int x = 0; x < (int) expected.getWidth(); x++) {
+            for (int y = 0; y < (int) expected.getHeight(); y++) {
+                int want = expected.getPixelReader().getArgb(x, y);
+                int got = actual.getPixelReader().getArgb(x, y);
+                if (want != got) {
+                    fail(message + ": pixel " + x + "," + y + " was " + Integer.toHexString(got)
+                            + ", expected " + Integer.toHexString(want));
+                }
+            }
+        }
     }
 
     private WritableImage snapshot() {

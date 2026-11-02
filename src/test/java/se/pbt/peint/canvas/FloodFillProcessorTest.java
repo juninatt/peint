@@ -1,5 +1,6 @@
 package se.pbt.peint.canvas;
 
+import javafx.geometry.Rectangle2D;
 import javafx.scene.image.PixelWriter;
 import javafx.scene.image.WritableImage;
 import javafx.scene.paint.Color;
@@ -8,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import se.pbt.peint.FxTestSupport;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.fail;
 
 class FloodFillProcessorTest {
@@ -111,6 +113,30 @@ class FloodFillProcessorTest {
 
             assertEquals(justTooDark, color(image, 2, 4), "a pixel beyond the tolerance should be kept");
             assertEquals(Color.WHITE, color(image, 0, 0), "the fill shouldn't pass through it");
+        });
+    }
+
+    @Test
+    void returnsTheBoundsOfTheFilledPixels() {
+        FxTestSupport.runAndWait(() -> {
+            WritableImage image = filledImage(Color.WHITE);
+            drawBox(image, 2, 3, 7, 8, Color.BLACK);
+
+            Rectangle2D bounds = new FloodFillProcessor(image.getPixelReader(), image.getPixelWriter(), SIZE, SIZE)
+                    .fill(4, 5, Color.RED);
+
+            // The inside of the box, between its borders.
+            assertEquals(new Rectangle2D(3, 4, 4, 4), bounds);
+        });
+    }
+
+    @Test
+    void returnsNoBoundsWhenNothingWasFilled() {
+        FxTestSupport.runAndWait(() -> {
+            WritableImage image = filledImage(Color.RED);
+
+            assertNull(new FloodFillProcessor(image.getPixelReader(), image.getPixelWriter(), SIZE, SIZE)
+                    .fill(5, 5, Color.RED));
         });
     }
 
