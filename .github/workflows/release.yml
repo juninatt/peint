@@ -84,10 +84,20 @@ jobs:
     permissions:
       contents: write
     steps:
+      # Full history and tags, to find the commits since the previous version.
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
       - uses: actions/download-artifact@v8
         with:
           path: dist
           merge-multiple: true
+
+      # --generate-notes only lists merged pull requests, and changes here are
+      # committed directly, so the notes are built from the commits instead.
+      - name: Write release notes
+        run: bash .github/scripts/release-notes.sh "$GITHUB_REF_NAME" "$GITHUB_REPOSITORY" > release-notes.md
 
       - name: Create release
         env:
@@ -96,5 +106,5 @@ jobs:
           gh release create "$GITHUB_REF_NAME" dist/* \
             --repo "$GITHUB_REPOSITORY" \
             --title "Peint ${GITHUB_REF_NAME#v}" \
-            --generate-notes \
+            --notes-file release-notes.md \
             --verify-tag
