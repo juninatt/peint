@@ -1,0 +1,29 @@
+# Runs the tests on every push to main and on every pull request.
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+# Git Bash on Windows, so ./mvnw works the same as in the release workflow.
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  test:
+    # The tests need a display for JavaFX; the Windows runner has one.
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: maven
+
+      - name: Run tests
+        run: ./mvnw -B test
