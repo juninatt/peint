@@ -3,6 +3,9 @@ module se.pbt.peint {
     requires javafx.controls;
     requires javafx.fxml;
 
+    // Themes
+    requires atlantafx.base;
+
     // Icons
     requires org.kordamp.ikonli.javafx;
     requires org.kordamp.ikonli.fontawesome5;

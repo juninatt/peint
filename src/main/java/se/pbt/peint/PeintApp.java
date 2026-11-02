@@ -5,6 +5,7 @@ import javafx.fxml.FXMLLoader;
 import javafx.scene.Scene;
 import javafx.scene.control.Alert;
 import javafx.stage.Stage;
+import se.pbt.peint.support.SystemTheme;
 
 import java.io.IOException;
 import java.util.logging.Level;
@@ -28,6 +29,7 @@ public class PeintApp extends Application {
      */
     @Override
     public void start(Stage stage) {
+        SystemTheme.follow();
         try {
             FXMLLoader fxmlLoader = new FXMLLoader(PeintApp.class.getResource("peint-view.fxml"));
             Scene scene = new Scene(fxmlLoader.load(), 1200, 800);
