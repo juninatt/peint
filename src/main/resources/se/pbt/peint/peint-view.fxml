@@ -7,6 +7,9 @@
 <?import javafx.scene.control.MenuBar?>
 <?import javafx.scene.control.MenuItem?>
 <?import javafx.scene.control.ScrollPane?>
+<?import javafx.scene.control.Separator?>
+<?import javafx.scene.control.ToggleButton?>
+<?import javafx.scene.control.ToggleGroup?>
 <?import javafx.scene.control.ToolBar?>
 <?import javafx.scene.control.Tooltip?>
 <?import javafx.scene.layout.BorderPane?>
@@ -54,6 +57,11 @@
                 </Menu>
                 <!-- Draw: drawing tools -->
                 <Menu text="Draw">
+                    <MenuItem text="Brush" onAction="#onBrush" accelerator="B">
+                        <graphic>
+                            <FontIcon iconLiteral="fas-paint-brush" iconSize="16" />
+                        </graphic>
+                    </MenuItem>
                     <MenuItem text="Fill" onAction="#onBucketFill" accelerator="F">
                         <graphic>
                             <FontIcon iconLiteral="fas-fill-drip" iconSize="16" />
@@ -62,8 +70,30 @@
                 </Menu>
             </MenuBar>
 
-            <!-- Coloring + toolbar positioning: the only controls not moved into the menu bar -->
+            <!-- Tools, coloring and toolbar positioning -->
             <ToolBar fx:id="toolBar">
+                <!-- One tool is always selected; the controller keeps the
+                     group from being emptied by clicking the selected one. -->
+                <ToggleButton fx:id="brushButton" onAction="#onBrush" selected="true">
+                    <toggleGroup>
+                        <ToggleGroup fx:id="toolGroup" />
+                    </toggleGroup>
+                    <graphic>
+                        <FontIcon iconLiteral="fas-paint-brush" iconSize="16" />
+                    </graphic>
+                    <tooltip>
+                        <Tooltip text="Brush (B)" />
+                    </tooltip>
+                </ToggleButton>
+                <ToggleButton fx:id="fillButton" onAction="#onBucketFill" toggleGroup="$toolGroup">
+                    <graphic>
+                        <FontIcon iconLiteral="fas-fill-drip" iconSize="16" />
+                    </graphic>
+                    <tooltip>
+                        <Tooltip text="Fill (F)" />
+                    </tooltip>
+                </ToggleButton>
+                <Separator />
                 <ColorPicker fx:id="colorPicker">
                     <tooltip>
                         <Tooltip text="Select a color for drawing" />

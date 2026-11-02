@@ -27,6 +27,7 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -70,7 +71,27 @@ class PeintViewTest {
         assertEquals(KeyCombination.valueOf("Shortcut+O"), accelerators.get("Open"));
         assertEquals(KeyCombination.valueOf("Shortcut+Z"), accelerators.get("Undo"));
         assertEquals(KeyCombination.valueOf("Shortcut+Y"), accelerators.get("Redo"));
+        assertEquals(KeyCombination.valueOf("B"), accelerators.get("Brush"));
         assertEquals(KeyCombination.valueOf("F"), accelerators.get("Fill"));
+    }
+
+    @Test
+    void escapeSelectsTheBrushFromAnywhereInTheWindow() {
+        FxTestSupport.runAndWait(() -> {
+            controller.onBucketFill();
+
+            Runnable selectBrush = scene.getAccelerators().get(PeintController.SELECT_BRUSH);
+            assertNotNull(selectBrush, "Escape should be registered on the scene");
+            selectBrush.run();
+
+            assertTrue(controller.brushButton.isSelected());
+        });
+    }
+
+    @Test
+    void theToolbarShowsTheBrushAsSelectedAtFirst() {
+        assertTrue(controller.brushButton.isSelected());
+        assertSame(controller.toolGroup, controller.fillButton.getToggleGroup());
     }
 
     @Test

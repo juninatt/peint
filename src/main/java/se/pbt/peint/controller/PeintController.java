@@ -2,7 +2,6 @@ package se.pbt.peint.controller;
 
 import javafx.concurrent.Task;
 import javafx.embed.swing.SwingFXUtils;
-import javafx.event.EventHandler;
 import javafx.fxml.FXML;
 import javafx.scene.Cursor;
 import javafx.scene.Scene;
@@ -10,11 +9,11 @@ import javafx.scene.canvas.Canvas;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.ColorPicker;
+import javafx.scene.control.ToggleButton;
+import javafx.scene.control.ToggleGroup;
 import javafx.scene.control.ToolBar;
 import javafx.scene.image.WritableImage;
-import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyCombination;
-import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.VBox;
@@ -23,6 +22,7 @@ import javafx.stage.FileChooser;
 import se.pbt.peint.canvas.BrushTool;
 import se.pbt.peint.canvas.CanvasManager;
 import se.pbt.peint.canvas.FillTool;
+import se.pbt.peint.canvas.Tool;
 import se.pbt.peint.support.BackgroundTasks;
 import se.pbt.peint.support.ImageFileService;
 
@@ -45,6 +45,8 @@ public class PeintController {
 
     static final KeyCombination REDO_ALTERNATIVE = KeyCombination.valueOf("Shortcut+Shift+Z");
 
+    static final KeyCombination SELECT_BRUSH = KeyCombination.valueOf("Esc");
+
     @FXML
     Canvas canvas;
 
@@ -66,17 +68,18 @@ public class PeintController {
     @FXML
     Button toggleToolbarPositionButton;
 
+    @FXML
+    ToggleGroup toolGroup;
+
+    @FXML
+    ToggleButton brushButton;
+
+    @FXML
+    ToggleButton fillButton;
+
     CanvasManager canvasManager;
     ToolbarManager toolbarManager;
     final ImageFileService imageFileService = new ImageFileService();
-
-    // Cancels an armed bucket fill; added to the scene only while armed.
-    private final EventHandler<KeyEvent> cancelFillOnEscape = event -> {
-        if (event.getCode() == KeyCode.ESCAPE) {
-            restoreBrush();
-            event.consume();
-        }
-    };
 
     /**
      * Initializes the controller and sets up managers for canvas and toolbar interactions.
@@ -91,13 +94,33 @@ public class PeintController {
         canvasManager.setDrawingColor(colorPicker.getValue());
         colorPicker.setOnAction(event -> canvasManager.setDrawingColor(colorPicker.getValue()));
 
-        // The menu's Redo item can only carry one accelerator (Shortcut+Y),
-        // so the other common one is added to the scene once there is one.
-        canvas.sceneProperty().addListener((observable, oldScene, newScene) -> {
-            if (newScene != null) {
-                newScene.getAccelerators().put(REDO_ALTERNATIVE, this::onRedo);
+        // Clicking the selected tool's button would otherwise leave no tool
+        // selected; keep it selected instead.
+        toolGroup.selectedToggleProperty().addListener((observable, oldToggle, newToggle) -> {
+            if (newToggle == null) {
+                oldToggle.setSelected(true);
             }
         });
+
+        // The scene doesn't exist yet when loaded from FXML, so the scene-wide
+        // shortcuts are added once the canvas is placed in one.
+        if (canvas.getScene() != null) {
+            addSceneShortcuts(canvas.getScene());
+        }
+        canvas.sceneProperty().addListener((observable, oldScene, newScene) -> {
+            if (newScene != null) {
+                addSceneShortcuts(newScene);
+            }
+        });
+    }
+
+    /**
+     * Adds the shortcuts no menu item carries: the menu's Redo item can only
+     * have one accelerator (Shortcut+Y), and Escape has no menu item.
+     */
+    private void addSceneShortcuts(Scene scene) {
+        scene.getAccelerators().put(REDO_ALTERNATIVE, this::onRedo);
+        scene.getAccelerators().put(SELECT_BRUSH, this::onBrush);
     }
 
     /**
@@ -267,24 +290,43 @@ public class PeintController {
     }
 
     /**
-     * Arms the bucket fill tool: fills the clicked area on the next canvas
-     * click, then switches back to the brush.
-     *
-     * <p>While armed, the canvas shows a crosshair cursor, and Escape
-     * cancels the fill. Escape is caught by a filter on the whole scene, so
-     * it works whichever control has focus once the menu closes.</p>
+     * Selects the brush, for drawing freehand strokes.
+     */
+    @FXML
+    void onBrush() {
+        selectTool(new BrushTool(), brushButton);
+    }
+
+    /**
+     * Selects the fill tool, which fills each clicked area until another
+     * tool is chosen.
      */
     @FXML
     void onBucketFill() {
-        canvasManager.setTool(new FillTool(this::restoreBrush));
-        canvas.setCursor(Cursor.CROSSHAIR);
+        selectTool(new FillTool(), fillButton);
+    }
 
-        Scene scene = canvas.getScene();
-        if (scene != null) {
-            // Removed first, so arming the fill twice doesn't add it twice.
-            scene.removeEventFilter(KeyEvent.KEY_PRESSED, cancelFillOnEscape);
-            scene.addEventFilter(KeyEvent.KEY_PRESSED, cancelFillOnEscape);
-        }
+    /**
+     * Selects a tool on the canvas, and shows it in the toolbar and in the
+     * canvas's cursor, whether it was chosen from the toolbar, the menu or
+     * a shortcut.
+     */
+    private void selectTool(Tool tool, ToggleButton button) {
+        canvasManager.setTool(tool);
+        button.setSelected(true);
+        canvas.setCursor(cursorFor(tool));
+    }
+
+    /**
+     * Returns the cursor shown over the canvas while the given tool is
+     * selected. Tool is sealed, so this switch covers every tool, and a new
+     * tool won't compile until it is given a cursor here.
+     */
+    static Cursor cursorFor(Tool tool) {
+        return switch (tool) {
+            case BrushTool brush -> Cursor.DEFAULT;
+            case FillTool fill -> Cursor.CROSSHAIR;
+        };
     }
 
     /**
@@ -301,18 +343,5 @@ public class PeintController {
     @FXML
     void onClearCanvas() {
         canvasManager.clearCanvas();
-    }
-
-    /**
-     * Switches back to the brush, removing the fill tool's cursor and Escape
-     * filter, once a fill has completed or been cancelled.
-     */
-    void restoreBrush() {
-        canvasManager.setTool(new BrushTool());
-        canvas.setCursor(Cursor.DEFAULT);
-        Scene scene = canvas.getScene();
-        if (scene != null) {
-            scene.removeEventFilter(KeyEvent.KEY_PRESSED, cancelFillOnEscape);
-        }
     }
 }

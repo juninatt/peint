@@ -433,7 +433,7 @@ class CanvasManagerTest {
     @Test
     void dragsDoNotDrawWithTheFillTool() {
         FxTestSupport.runAndWait(() -> {
-            canvasManager.setTool(new FillTool(() -> { }));
+            canvasManager.setTool(new FillTool());
 
             drag(10, 50, 90, 50, 8);
 
@@ -447,16 +447,18 @@ class CanvasManagerTest {
     }
 
     @Test
-    void clickingWithTheFillToolFillsAndReportsIt() {
+    void theFillToolStaysSelectedAndFillsEachClick() {
         FxTestSupport.runAndWait(() -> {
-            int[] fills = {0};
+            drag(0, 50, SIZE, 50, 8); // splits the canvas into a top and a bottom area
             canvasManager.setDrawingColor(Color.RED);
-            canvasManager.setTool(new FillTool(() -> fills[0]++));
+            canvasManager.setTool(new FillTool());
 
-            fireMouse(MouseEvent.MOUSE_CLICKED, 50, 50);
+            fireMouse(MouseEvent.MOUSE_CLICKED, 50, 20);
+            fireMouse(MouseEvent.MOUSE_CLICKED, 50, 80);
 
-            assertEquals(Color.RED, pixel(50, 50), "the click should fill in the drawing color");
-            assertEquals(1, fills[0], "the fill tool should report each fill");
+            assertEquals(Color.RED, pixel(50, 20), "the first click should fill the top area");
+            assertEquals(Color.RED, pixel(50, 80), "the second click should fill the bottom area too");
+            assertInstanceOf(FillTool.class, canvasManager.getTool());
         });
     }
 
@@ -473,7 +475,7 @@ class CanvasManagerTest {
     @Test
     void switchingBackToTheBrushDrawsAgain() {
         FxTestSupport.runAndWait(() -> {
-            canvasManager.setTool(new FillTool(() -> { }));
+            canvasManager.setTool(new FillTool());
             canvasManager.setTool(new BrushTool());
 
             drag(10, 50, 90, 50, 8);

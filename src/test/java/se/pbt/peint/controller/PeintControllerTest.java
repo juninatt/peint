@@ -8,6 +8,8 @@ import javafx.scene.Scene;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.control.Button;
 import javafx.scene.control.ColorPicker;
+import javafx.scene.control.ToggleButton;
+import javafx.scene.control.ToggleGroup;
 import javafx.scene.control.ToolBar;
 import javafx.scene.image.WritableImage;
 import javafx.scene.input.KeyCode;
@@ -83,12 +85,18 @@ class PeintControllerTest {
             controller.toolBar = new ToolBar();
             controller.colorPicker = new ColorPicker();
             controller.toggleToolbarPositionButton = new Button();
+            controller.toolGroup = new ToggleGroup();
+            controller.brushButton = new ToggleButton();
+            controller.fillButton = new ToggleButton();
+            controller.brushButton.setToggleGroup(controller.toolGroup);
+            controller.fillButton.setToggleGroup(controller.toolGroup);
+            controller.brushButton.setSelected(true);
 
             controller.rootPane.resize(200, 200);
             controller.topContainer.getChildren().add(controller.toolBar);
 
             // Laid out like peint-view.fxml, in a scene so key events reach
-            // scene-level filters.
+            // the scene's shortcuts.
             controller.canvasContainer.getChildren().add(controller.canvas);
             controller.rootPane.setCenter(controller.canvasContainer);
             new Scene(controller.rootPane);
@@ -128,10 +136,17 @@ class PeintControllerTest {
     }
 
     @Test
+    void theBrushIsSelectedAtFirst() {
+        assertInstanceOf(BrushTool.class, controller.canvasManager.getTool());
+        assertTrue(controller.brushButton.isSelected());
+    }
+
+    @Test
     void onBucketFillSelectsTheFillTool() {
         FxTestSupport.runAndWait(() -> controller.onBucketFill());
 
         assertInstanceOf(FillTool.class, controller.canvasManager.getTool());
+        assertTrue(controller.fillButton.isSelected(), "the toolbar should show the fill tool as selected");
     }
 
     @Test
@@ -142,40 +157,55 @@ class PeintControllerTest {
     }
 
     @Test
-    void fillingRestoresTheCursorAndDrawingMode() {
+    void theFillToolStaysSelectedAfterAFill() {
         FxTestSupport.runAndWait(() -> {
             controller.onBucketFill();
 
             fireMouse(MouseEvent.MOUSE_CLICKED, 10, 10);
 
-            assertEquals(Cursor.DEFAULT, controller.canvas.getCursor());
-            assertInstanceOf(BrushTool.class, controller.canvasManager.getTool(), "the fill should only apply once");
+            assertInstanceOf(FillTool.class, controller.canvasManager.getTool(), "the fill should stay selected");
+            assertEquals(Cursor.CROSSHAIR, controller.canvas.getCursor());
         });
     }
 
     @Test
-    void escapeCancelsTheArmedFill() {
+    void onBrushSelectsTheBrush() {
+        FxTestSupport.runAndWait(() -> {
+            controller.onBucketFill();
+
+            controller.onBrush();
+
+            assertInstanceOf(BrushTool.class, controller.canvasManager.getTool());
+            assertTrue(controller.brushButton.isSelected());
+            assertEquals(Cursor.DEFAULT, controller.canvas.getCursor());
+        });
+    }
+
+    @Test
+    void escapeSelectsTheBrush() {
         FxTestSupport.runAndWait(() -> {
             controller.onBucketFill();
 
             pressKey(KeyCode.ESCAPE);
 
+            assertInstanceOf(BrushTool.class, controller.canvasManager.getTool());
             assertEquals(Cursor.DEFAULT, controller.canvas.getCursor());
-            assertInstanceOf(BrushTool.class, controller.canvasManager.getTool(), "a click after Escape shouldn't fill");
         });
     }
 
     @Test
-    void escapeDoesNothingOnceTheFillIsDone() {
+    void clickingTheSelectedToolButtonKeepsItSelected() {
         FxTestSupport.runAndWait(() -> {
-            controller.onBucketFill();
-            fireMouse(MouseEvent.MOUSE_CLICKED, 10, 10);
-            controller.canvas.setCursor(Cursor.HAND);
+            controller.brushButton.setSelected(false); // what clicking a selected ToggleButton does
 
-            pressKey(KeyCode.ESCAPE);
-
-            assertEquals(Cursor.HAND, controller.canvas.getCursor(), "the Escape filter should have been removed");
+            assertTrue(controller.brushButton.isSelected(), "some tool should always be selected");
         });
+    }
+
+    @Test
+    void everyToolHasACursor() {
+        assertEquals(Cursor.DEFAULT, PeintController.cursorFor(new BrushTool()));
+        assertEquals(Cursor.CROSSHAIR, PeintController.cursorFor(new FillTool()));
     }
 
     @Test
