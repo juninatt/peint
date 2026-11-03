@@ -17,6 +17,9 @@
         <!-- JavaFX loads native libraries, which Java 24+ warns about unless
              the module doing so is explicitly allowed to. -->
         <javafx.jvm.options>--enable-native-access=javafx.graphics</javafx.jvm.options>
+        <!-- The tests' fake Ollama server uses the JDK's built-in HTTP server,
+             which the application module itself doesn't need to read. -->
+        <test.module.options>--add-modules jdk.httpserver --add-reads se.pbt.peint=jdk.httpserver</test.module.options>
     </properties>
 
     <dependencies>
@@ -35,6 +38,13 @@
             <groupId>org.openjfx</groupId>
             <artifactId>javafx-swing</artifactId>
             <version>${javafx.version}</version>
+        </dependency>
+
+        <!-- JSON, for talking to Ollama -->
+        <dependency>
+            <groupId>tools.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <version>3.2.4</version>
         </dependency>
 
         <!-- UI Libraries -->
@@ -79,13 +89,27 @@
                 <configuration>
                     <release>25</release>
                 </configuration>
+                <executions>
+                    <execution>
+                        <!-- Only the tests read jdk.httpserver; see test.module.options. -->
+                        <id>default-testCompile</id>
+                        <configuration>
+                            <compilerArgs>
+                                <arg>--add-modules</arg>
+                                <arg>jdk.httpserver</arg>
+                                <arg>--add-reads</arg>
+                                <arg>se.pbt.peint=jdk.httpserver</arg>
+                            </compilerArgs>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>3.6.1</version>
                 <configuration>
-                    <argLine>${javafx.jvm.options}</argLine>
+                    <argLine>${javafx.jvm.options} ${test.module.options}</argLine>
                 </configuration>
             </plugin>
             <plugin>

@@ -3,6 +3,10 @@ module se.pbt.peint {
     requires javafx.controls;
     requires javafx.fxml;
 
+    // Talking to a local Ollama server
+    requires java.net.http;
+    requires tools.jackson.databind;
+
     // Themes
     requires atlantafx.base;
 

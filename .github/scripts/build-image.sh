@@ -16,7 +16,9 @@ name="$1"
 # The JDK the build uses, rather than whichever is first on the PATH.
 bin="${JAVA_HOME:+$JAVA_HOME/bin/}"
 
-./mvnw -B -q package -DskipTests
+# Cleaned first, so no jar left over from an earlier build or version ends up
+# on the module path.
+./mvnw -B -q clean package -DskipTests
 ./mvnw -B -q dependency:copy-dependencies -DincludeScope=runtime -DoutputDirectory=target/modules
 
 # Each JavaFX module comes as an empty placeholder jar (javafx-base-25.0.5.jar)
