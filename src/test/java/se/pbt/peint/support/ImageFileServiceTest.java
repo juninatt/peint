@@ -53,6 +53,53 @@ class ImageFileServiceTest {
     }
 
     @Test
+    void savesAGifKeepingSolidColorsExactly() throws IOException {
+        File file = tempDir.resolve("image.gif").toFile();
+
+        service.save(file, ExifOrientationTest.halfRedHalfBlue(40, 20), "gif");
+
+        BufferedImage saved = service.load(file);
+        assertEquals(0xFFFF0000, saved.getRGB(5, 10), "a drawing's few colors fit GIF's palette exactly");
+        assertEquals(0xFF0000FF, saved.getRGB(35, 10));
+    }
+
+    @Test
+    void savesAGifOfAnImageWithMoreColorsThanItsPaletteHoldsApproximately() throws IOException {
+        // 120 000 distinct colors, like a photo, for GIF's 256.
+        BufferedImage gradient = new BufferedImage(400, 300, BufferedImage.TYPE_INT_ARGB);
+        for (int y = 0; y < 300; y++) {
+            for (int x = 0; x < 400; x++) {
+                gradient.setRGB(x, y, 0xFF000000 | (x * 255 / 399) << 16 | (y * 255 / 299) << 8 | (x + y) * 255 / 698);
+            }
+        }
+        File file = tempDir.resolve("gradient.gif").toFile();
+
+        service.save(file, gradient, "gif");
+
+        BufferedImage saved = service.load(file);
+        long totalError = 0;
+        for (int y = 0; y < 300; y++) {
+            for (int x = 0; x < 400; x++) {
+                totalError += channelDifference(gradient.getRGB(x, y), saved.getRGB(x, y));
+            }
+        }
+        double averageError = totalError / (400.0 * 300);
+        assertTrue(averageError < 16, "colors should be close, but were off by " + averageError + " on average");
+    }
+
+    /**
+     * Returns the largest difference, 0-255, between two colors' red, green
+     * and blue channels.
+     */
+    private static int channelDifference(int rgb, int otherRgb) {
+        int difference = 0;
+        for (int shift = 0; shift <= 16; shift += 8) {
+            difference = Math.max(difference, Math.abs(((rgb >> shift) & 0xFF) - ((otherRgb >> shift) & 0xFF)));
+        }
+        return difference;
+    }
+
+    @Test
     void savingInAnUnsupportedFormatThrows() {
         File file = tempDir.resolve("image.txt").toFile();
 

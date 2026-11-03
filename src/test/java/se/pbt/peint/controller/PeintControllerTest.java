@@ -389,6 +389,26 @@ class PeintControllerTest {
     }
 
     @Test
+    void saveFiltersOfferEveryWritableFormatWithPngFirst() {
+        List<String> firstExtensions = PeintController.saveFilters().stream()
+                .map(PeintController::defaultExtension)
+                .toList();
+
+        assertEquals(List.of("png", "jpg", "bmp", "gif"), firstExtensions);
+    }
+
+    @Test
+    void saveImageWritesAGif() throws Exception {
+        File file = tempDir.resolve("drawing.gif").toFile();
+
+        FxTestSupport.runAndWait(() -> controller.saveImage(file, "gif"));
+
+        BufferedImage saved = awaitReadableImage(file);
+        assertEquals(50, saved.getWidth());
+        assertTrue(reportedErrors.isEmpty(), "a successful save shouldn't report an error");
+    }
+
+    @Test
     void defaultExtensionFallsBackToPngWithoutAFilter() {
         assertEquals("png", PeintController.defaultExtension(null));
     }

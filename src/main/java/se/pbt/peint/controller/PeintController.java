@@ -35,6 +35,7 @@ import se.pbt.peint.support.ImageFileService;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
+import java.util.List;
 import java.util.function.DoubleConsumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -178,17 +179,13 @@ public class PeintController {
     }
 
     /**
-     * Prompts for a destination file and saves the canvas to it as a PNG, JPEG, or BMP.
+     * Prompts for a destination file and saves the canvas to it as a PNG, JPEG, BMP or GIF.
      */
     @FXML
     void onSave() {
         FileChooser fileChooser = new FileChooser();
         fileChooser.setTitle("Save Canvas As Image");
-        fileChooser.getExtensionFilters().addAll(
-                new FileChooser.ExtensionFilter("PNG Files", "*.png"),
-                new FileChooser.ExtensionFilter("JPEG Files", "*.jpg", "*.jpeg"),
-                new FileChooser.ExtensionFilter("BMP Files", "*.bmp")
-        );
+        fileChooser.getExtensionFilters().addAll(saveFilters());
 
         File chosenFile = fileChooser.showSaveDialog(canvas.getScene().getWindow());
         if (chosenFile == null) {
@@ -232,6 +229,22 @@ public class PeintController {
         });
 
         BackgroundTasks.run(saveTask, "peint-image-save");
+    }
+
+    /**
+     * Returns the file filters for the Save dialog, one per format the canvas
+     * can be saved in. The first is the one selected by default.
+     *
+     * <p>GIF holds at most 256 colors, so drawings keep their colors exactly
+     * but photos come out with slightly shifted colors; the filter says so.</p>
+     */
+    static List<FileChooser.ExtensionFilter> saveFilters() {
+        return List.of(
+                new FileChooser.ExtensionFilter("PNG Files", "*.png"),
+                new FileChooser.ExtensionFilter("JPEG Files", "*.jpg", "*.jpeg"),
+                new FileChooser.ExtensionFilter("BMP Files", "*.bmp"),
+                new FileChooser.ExtensionFilter("GIF Files (256 colors)", "*.gif")
+        );
     }
 
     /**
