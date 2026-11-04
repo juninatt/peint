@@ -9,6 +9,7 @@
 <?import javafx.scene.control.MenuItem?>
 <?import javafx.scene.control.ScrollPane?>
 <?import javafx.scene.control.Separator?>
+<?import javafx.scene.control.SeparatorMenuItem?>
 <?import javafx.scene.control.Slider?>
 <?import javafx.scene.control.ToggleButton?>
 <?import javafx.scene.control.ToggleGroup?>
@@ -81,6 +82,12 @@
                     <MenuItem fx:id="describeItem" text="Describe Drawing…" onAction="#onDescribe" accelerator="Shortcut+D">
                         <graphic>
                             <FontIcon iconLiteral="fas-magic" iconSize="16" />
+                        </graphic>
+                    </MenuItem>
+                    <SeparatorMenuItem />
+                    <MenuItem text="AI Settings…" onAction="#onAiSettings">
+                        <graphic>
+                            <FontIcon iconLiteral="fas-cog" iconSize="16" />
                         </graphic>
                     </MenuItem>
                 </Menu>

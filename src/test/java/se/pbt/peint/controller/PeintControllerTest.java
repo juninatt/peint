@@ -32,6 +32,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import se.pbt.peint.FxTestSupport;
+import se.pbt.peint.ai.AiSettings;
 import se.pbt.peint.ai.Description;
 import se.pbt.peint.ai.FakeOllama;
 import se.pbt.peint.ai.OllamaClient;
@@ -49,12 +50,16 @@ import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
+import java.util.prefs.BackingStoreException;
+import java.util.prefs.Preferences;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -84,6 +89,12 @@ class PeintControllerTest {
     private final AtomicInteger progressClosed = new AtomicInteger();
 
     private FakeOllama ollama;
+
+    // The settings the AI settings dialog "returns", instead of opening it.
+    private final AtomicReference<Optional<AiSettings>> answerForAiSettings = new AtomicReference<>(Optional.empty());
+
+    // A preferences node of the test's own, so it never touches the user's real settings.
+    private final Preferences preferences = Preferences.userRoot().node("se/pbt/peint/test-" + UUID.randomUUID());
 
     @TempDir
     Path tempDir;
@@ -116,7 +127,13 @@ class PeintControllerTest {
                     shownDescriptions.add(description);
                     descriptionShown.countDown();
                 }
+
+                @Override
+                Optional<AiSettings> askForAiSettings(AiSettings current) {
+                    return answerForAiSettings.get();
+                }
             };
+            controller.preferences = preferences;
             controller.canvas = new Canvas(50, 50);
             controller.rootPane = new BorderPane();
             controller.canvasContainer = new Pane();
@@ -477,10 +494,51 @@ class PeintControllerTest {
     }
 
     @AfterEach
-    void stopFakeOllama() {
+    void stopFakeOllama() throws BackingStoreException {
         if (ollama != null) {
             ollama.close();
         }
+        preferences.removeNode();
+    }
+
+    @Test
+    void theAiSettingsStartAsTheDefaults() {
+        assertEquals(AiSettings.DEFAULTS, controller.aiSettings);
+        assertEquals(AiSettings.DEFAULTS.address(), controller.ollama.address());
+        assertEquals(AiSettings.DEFAULTS.model(), controller.model);
+    }
+
+    @Test
+    void chosenAiSettingsAreUsedAndKept() {
+        AiSettings chosen = new AiSettings(URI.create("http://gpu-box:11434"), "gemma3:12b");
+        answerForAiSettings.set(Optional.of(chosen));
+
+        FxTestSupport.runAndWait(() -> controller.onAiSettings());
+
+        assertEquals(chosen.address(), controller.ollama.address());
+        assertEquals("gemma3:12b", controller.model);
+        assertEquals(chosen, AiSettings.load(preferences), "the choice should survive a restart");
+    }
+
+    @Test
+    void cancellingTheAiSettingsKeepsTheCurrentOnes() {
+        answerForAiSettings.set(Optional.empty());
+
+        FxTestSupport.runAndWait(() -> controller.onAiSettings());
+
+        assertEquals(AiSettings.DEFAULTS, controller.aiSettings);
+        assertEquals(AiSettings.DEFAULTS, AiSettings.load(preferences));
+    }
+
+    @Test
+    void storedAiSettingsAreLoadedAtStartup() {
+        AiSettings stored = new AiSettings(URI.create("http://gpu-box:11434"), "llava:13b");
+        stored.save(preferences);
+
+        FxTestSupport.runAndWait(() -> controller.initialize());
+
+        assertEquals(stored, controller.aiSettings);
+        assertEquals("llava:13b", controller.model);
     }
 
     private static int freePort() throws IOException {

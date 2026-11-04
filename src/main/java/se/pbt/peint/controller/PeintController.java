@@ -1,5 +1,6 @@
 package se.pbt.peint.controller;
 
+import javafx.beans.binding.Bindings;
 import javafx.concurrent.Task;
 import javafx.embed.swing.SwingFXUtils;
 import javafx.fxml.FXML;
@@ -12,11 +13,13 @@ import javafx.scene.control.Button;
 import javafx.scene.control.ButtonBar;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.ColorPicker;
+import javafx.scene.control.Dialog;
 import javafx.scene.control.Label;
 import javafx.scene.control.MenuItem;
 import javafx.scene.control.ProgressIndicator;
 import javafx.scene.control.Slider;
 import javafx.scene.control.TextArea;
+import javafx.scene.control.TextField;
 import javafx.scene.control.ToggleButton;
 import javafx.scene.control.ToggleGroup;
 import javafx.scene.control.ToolBar;
@@ -30,6 +33,7 @@ import javafx.scene.layout.Pane;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.stage.FileChooser;
+import se.pbt.peint.ai.AiSettings;
 import se.pbt.peint.ai.Description;
 import se.pbt.peint.ai.DrawingDescriber;
 import se.pbt.peint.ai.OllamaClient;
@@ -48,9 +52,11 @@ import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.DoubleConsumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.prefs.Preferences;
 
 /**
  * The main controller for the Peint application.
@@ -66,9 +72,6 @@ public class PeintController {
     static final KeyCombination REDO_ALTERNATIVE = KeyCombination.valueOf("Shortcut+Shift+Z");
 
     static final KeyCombination SELECT_BRUSH = KeyCombination.valueOf("Esc");
-
-    /** The model the AI menu asks unless configured otherwise: small, and able to see images. */
-    static final String DEFAULT_MODEL = "qwen3.5:4b";
 
     @FXML
     Canvas canvas;
@@ -134,9 +137,13 @@ public class PeintController {
     final EraserTool eraserTool = new EraserTool();
     final FillTool fillTool = new FillTool();
 
+    // Where the AI settings are kept between runs.
+    Preferences preferences = Preferences.userRoot().node("se/pbt/peint");
+
     // The local Ollama server the AI menu uses, and the model it asks.
-    OllamaClient ollama = new OllamaClient(OllamaClient.DEFAULT_ADDRESS);
-    String model = DEFAULT_MODEL;
+    AiSettings aiSettings = AiSettings.DEFAULTS;
+    OllamaClient ollama = new OllamaClient(aiSettings.address());
+    String model = aiSettings.model();
 
     // The most recent description of the drawing, or null before the first.
     Description lastDescription;
@@ -150,6 +157,7 @@ public class PeintController {
      */
     public void initialize() {
         canvasManager = new CanvasManager(canvas, canvasContainer);
+        applyAiSettings(AiSettings.load(preferences));
         toolbarManager = new ToolbarManager(toolBar, topContainer, rootPane, colorPicker, toggleToolbarPositionButton,
                 widthControls, toleranceControls);
 
@@ -412,6 +420,59 @@ public class PeintController {
         describeTask.setOnCancelled(event -> closeProgress.run());
 
         BackgroundTasks.run(describeTask, "peint-describe");
+    }
+
+    /**
+     * Lets the user choose the Ollama server and model, and keeps the choice
+     * for later runs.
+     */
+    @FXML
+    void onAiSettings() {
+        askForAiSettings(aiSettings).ifPresent(settings -> {
+            applyAiSettings(settings);
+            settings.save(preferences);
+        });
+    }
+
+    private void applyAiSettings(AiSettings settings) {
+        aiSettings = settings;
+        ollama = new OllamaClient(settings.address());
+        model = settings.model();
+    }
+
+    /**
+     * Asks for an Ollama address and model, starting from the given ones.
+     * OK is only enabled while the address is a valid URL and a model is named.
+     *
+     * @return the new settings, or empty if the user cancelled
+     */
+    Optional<AiSettings> askForAiSettings(AiSettings current) {
+        TextField address = new TextField(current.address().toString());
+        TextField modelName = new TextField(current.model());
+        address.setPrefColumnCount(24);
+
+        GridPane fields = new GridPane();
+        fields.setHgap(8);
+        fields.setVgap(8);
+        fields.addRow(0, new Label("Ollama address"), address);
+        fields.addRow(1, new Label("Model"), modelName);
+        fields.add(new Label("The model must be installed (ollama pull <model>) and able to see images."), 0, 2, 2, 1);
+
+        Dialog<AiSettings> dialog = new Dialog<>();
+        dialog.setTitle("Peint");
+        dialog.setHeaderText("AI Settings");
+        dialog.getDialogPane().setContent(fields);
+        dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
+        dialog.initOwner(canvas.getScene().getWindow());
+
+        Node ok = dialog.getDialogPane().lookupButton(ButtonType.OK);
+        ok.disableProperty().bind(Bindings.createBooleanBinding(
+                () -> AiSettings.parseAddress(address.getText()).isEmpty() || modelName.getText().isBlank(),
+                address.textProperty(), modelName.textProperty()));
+        dialog.setResultConverter(button -> button == ButtonType.OK
+                ? new AiSettings(AiSettings.parseAddress(address.getText()).orElseThrow(), modelName.getText().strip())
+                : null);
+        return dialog.showAndWait();
     }
 
     /**

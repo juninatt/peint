@@ -18,6 +18,7 @@ module se.pbt.peint {
     requires java.desktop;
     requires javafx.swing;
     requires java.logging;
+    requires java.prefs;
 
     // Module visibility
     opens se.pbt.peint to javafx.fxml;
