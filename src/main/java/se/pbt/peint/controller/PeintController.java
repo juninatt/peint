@@ -9,13 +9,20 @@ import javafx.scene.Scene;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
+import javafx.scene.control.ButtonBar;
+import javafx.scene.control.ButtonType;
 import javafx.scene.control.ColorPicker;
 import javafx.scene.control.Label;
+import javafx.scene.control.MenuItem;
+import javafx.scene.control.ProgressIndicator;
 import javafx.scene.control.Slider;
+import javafx.scene.control.TextArea;
 import javafx.scene.control.ToggleButton;
 import javafx.scene.control.ToggleGroup;
 import javafx.scene.control.ToolBar;
 import javafx.scene.image.WritableImage;
+import javafx.scene.input.Clipboard;
+import javafx.scene.input.DataFormat;
 import javafx.scene.input.KeyCombination;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.GridPane;
@@ -23,6 +30,10 @@ import javafx.scene.layout.Pane;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.stage.FileChooser;
+import se.pbt.peint.ai.Description;
+import se.pbt.peint.ai.DrawingDescriber;
+import se.pbt.peint.ai.OllamaClient;
+import se.pbt.peint.ai.OllamaException;
 import se.pbt.peint.canvas.BrushTool;
 import se.pbt.peint.canvas.CanvasManager;
 import se.pbt.peint.canvas.EraserTool;
@@ -36,6 +47,7 @@ import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.function.DoubleConsumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -54,6 +66,9 @@ public class PeintController {
     static final KeyCombination REDO_ALTERNATIVE = KeyCombination.valueOf("Shortcut+Shift+Z");
 
     static final KeyCombination SELECT_BRUSH = KeyCombination.valueOf("Esc");
+
+    /** The model the AI menu asks unless configured otherwise: small, and able to see images. */
+    static final String DEFAULT_MODEL = "qwen3.5:4b";
 
     @FXML
     Canvas canvas;
@@ -106,6 +121,9 @@ public class PeintController {
     @FXML
     Label toleranceLabel;
 
+    @FXML
+    MenuItem describeItem;
+
     CanvasManager canvasManager;
     ToolbarManager toolbarManager;
     final ImageFileService imageFileService = new ImageFileService();
@@ -115,6 +133,13 @@ public class PeintController {
     final BrushTool brushTool = new BrushTool();
     final EraserTool eraserTool = new EraserTool();
     final FillTool fillTool = new FillTool();
+
+    // The local Ollama server the AI menu uses, and the model it asks.
+    OllamaClient ollama = new OllamaClient(OllamaClient.DEFAULT_ADDRESS);
+    String model = DEFAULT_MODEL;
+
+    // The most recent description of the drawing, or null before the first.
+    Description lastDescription;
 
     // Where the width slider's value goes: the selected tool's width setter,
     // or nothing while the selected tool has no width.
@@ -331,6 +356,125 @@ public class PeintController {
         alert.setHeaderText(header);
         alert.setContentText(detail);
         alert.showAndWait();
+    }
+
+    /**
+     * Checks in the background whether Ollama runs, and disables
+     * <em>Describe Drawing</em> if it doesn't. Called each time the AI menu
+     * opens, so starting Ollama while Peint runs makes the item available.
+     */
+    @FXML
+    void onAiMenuShowing() {
+        Task<Boolean> check = new Task<>() {
+            @Override
+            protected Boolean call() {
+                return ollama.isAvailable();
+            }
+        };
+        check.setOnSucceeded(event -> describeItem.setDisable(!check.getValue()));
+        BackgroundTasks.run(check, "peint-ollama-check");
+    }
+
+    /**
+     * Asks the model for a title and a description of the drawing, showing
+     * progress, which can be cancelled, while it thinks, and the answer once
+     * it has one.
+     */
+    @FXML
+    void onDescribe() {
+        // Snapshotting the canvas must happen on the FX Application Thread;
+        // only asking the model is moved to a background thread.
+        WritableImage snapshot = new WritableImage((int) canvas.getWidth(), (int) canvas.getHeight());
+        canvas.snapshot(null, snapshot);
+        BufferedImage drawing = SwingFXUtils.fromFXImage(snapshot, null);
+
+        DrawingDescriber describer = new DrawingDescriber(ollama, model);
+        Task<Description> describeTask = new Task<>() {
+            @Override
+            protected Description call() throws IOException, InterruptedException {
+                return describer.describe(drawing);
+            }
+        };
+        Runnable closeProgress = showProgress("Looking at your drawing\u2026",
+                "A model on your own computer is describing the drawing. This can take a minute.",
+                () -> describeTask.cancel(true));
+
+        describeTask.setOnSucceeded(event -> {
+            closeProgress.run();
+            lastDescription = describeTask.getValue();
+            showDescription(lastDescription);
+        });
+        describeTask.setOnFailed(event -> {
+            closeProgress.run();
+            LOGGER.log(Level.WARNING, "Failed to describe the drawing", describeTask.getException());
+            showError("Could not describe the drawing", explainOllamaFailure(describeTask.getException()));
+        });
+        describeTask.setOnCancelled(event -> closeProgress.run());
+
+        BackgroundTasks.run(describeTask, "peint-describe");
+    }
+
+    /**
+     * Explains why talking to Ollama failed in terms the user can act on.
+     * Ollama's own messages, such as an unknown model, are shown as they are.
+     */
+    String explainOllamaFailure(Throwable failure) {
+        if (failure instanceof OllamaException) {
+            return failure.getMessage() + ".";
+        }
+        if (failure instanceof IOException && !ollama.isAvailable()) {
+            return "Peint could not reach Ollama at " + ollama.address()
+                    + ". Make sure Ollama is installed and running, then try again.";
+        }
+        return describe(failure);
+    }
+
+    /**
+     * Shows that something is in progress, with a button to cancel it.
+     *
+     * @param header what is happening
+     * @param detail what to expect
+     * @param cancel run when the user cancels
+     * @return closes the progress dialog
+     */
+    Runnable showProgress(String header, String detail, Runnable cancel) {
+        Alert progress = new Alert(Alert.AlertType.NONE, detail, ButtonType.CANCEL);
+        progress.setTitle("Peint");
+        progress.setHeaderText(header);
+        progress.setGraphic(new ProgressIndicator());
+        progress.initOwner(canvas.getScene().getWindow());
+        progress.resultProperty().addListener((observable, oldResult, newResult) -> {
+            if (newResult == ButtonType.CANCEL) {
+                cancel.run();
+            }
+        });
+        progress.show();
+        return () -> {
+            // Closing doesn't count as cancelling: the result is set first.
+            progress.setResult(ButtonType.OK);
+            progress.close();
+        };
+    }
+
+    /**
+     * Shows the model's title and description, offering to copy the
+     * description as alt text.
+     */
+    void showDescription(Description description) {
+        ButtonType copy = new ButtonType("Copy Alt Text", ButtonBar.ButtonData.OK_DONE);
+        TextArea text = new TextArea(description.text());
+        text.setEditable(false);
+        text.setWrapText(true);
+        text.setPrefRowCount(4);
+
+        Alert alert = new Alert(Alert.AlertType.INFORMATION, null, copy, ButtonType.CLOSE);
+        alert.setTitle("Peint");
+        alert.setHeaderText(description.title());
+        alert.getDialogPane().setContent(text);
+        alert.initOwner(canvas.getScene().getWindow());
+        alert.showAndWait()
+                .filter(copy::equals)
+                .ifPresent(button -> Clipboard.getSystemClipboard().setContent(Map.of(DataFormat.PLAIN_TEXT, description.text())));
     }
 
     /**

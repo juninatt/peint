@@ -76,6 +76,14 @@
                         </graphic>
                     </MenuItem>
                 </Menu>
+                <!-- AI: help from a model running on this computer through Ollama -->
+                <Menu text="AI" onShowing="#onAiMenuShowing">
+                    <MenuItem fx:id="describeItem" text="Describe Drawing…" onAction="#onDescribe" accelerator="Shortcut+D">
+                        <graphic>
+                            <FontIcon iconLiteral="fas-magic" iconSize="16" />
+                        </graphic>
+                    </MenuItem>
+                </Menu>
             </MenuBar>
 
             <!-- Tools, coloring and toolbar positioning -->

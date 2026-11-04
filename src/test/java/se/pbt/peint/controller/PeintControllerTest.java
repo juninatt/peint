@@ -10,6 +10,7 @@ import javafx.scene.canvas.Canvas;
 import javafx.scene.control.Button;
 import javafx.scene.control.ColorPicker;
 import javafx.scene.control.Label;
+import javafx.scene.control.MenuItem;
 import javafx.scene.control.Slider;
 import javafx.scene.control.ToggleButton;
 import javafx.scene.control.ToggleGroup;
@@ -25,11 +26,15 @@ import javafx.scene.layout.Pane;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.stage.FileChooser;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import se.pbt.peint.FxTestSupport;
+import se.pbt.peint.ai.Description;
+import se.pbt.peint.ai.FakeOllama;
+import se.pbt.peint.ai.OllamaClient;
 import se.pbt.peint.canvas.BrushTool;
 import se.pbt.peint.canvas.EraserTool;
 import se.pbt.peint.canvas.FillTool;
@@ -39,12 +44,15 @@ import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
+import java.net.ServerSocket;
+import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 
@@ -64,7 +72,18 @@ class PeintControllerTest {
 
     // Headers passed to showError(), which would otherwise open a blocking dialog.
     private final List<String> reportedErrors = new CopyOnWriteArrayList<>();
+    private final List<String> reportedErrorDetails = new CopyOnWriteArrayList<>();
     private final CountDownLatch errorReported = new CountDownLatch(1);
+
+    // What showProgress() and showDescription() were asked to show, instead
+    // of opening dialogs.
+    private final List<Description> shownDescriptions = new CopyOnWriteArrayList<>();
+    private final CountDownLatch descriptionShown = new CountDownLatch(1);
+    private final AtomicReference<Runnable> cancelProgress = new AtomicReference<>();
+    private final AtomicInteger progressShown = new AtomicInteger();
+    private final AtomicInteger progressClosed = new AtomicInteger();
+
+    private FakeOllama ollama;
 
     @TempDir
     Path tempDir;
@@ -81,7 +100,21 @@ class PeintControllerTest {
                 @Override
                 void showError(String header, String detail) {
                     reportedErrors.add(header);
+                    reportedErrorDetails.add(detail);
                     errorReported.countDown();
+                }
+
+                @Override
+                Runnable showProgress(String header, String detail, Runnable cancel) {
+                    progressShown.incrementAndGet();
+                    cancelProgress.set(cancel);
+                    return progressClosed::incrementAndGet;
+                }
+
+                @Override
+                void showDescription(Description description) {
+                    shownDescriptions.add(description);
+                    descriptionShown.countDown();
                 }
             };
             controller.canvas = new Canvas(50, 50);
@@ -91,6 +124,7 @@ class PeintControllerTest {
             controller.toolBar = new ToolBar();
             controller.colorPicker = new ColorPicker();
             controller.toggleToolbarPositionButton = new Button();
+            controller.describeItem = new MenuItem("Describe Drawing");
             controller.toolGroup = new ToggleGroup();
             controller.brushButton = new ToggleButton();
             controller.eraserButton = new ToggleButton();
@@ -348,6 +382,111 @@ class PeintControllerTest {
             assertEquals(Cursor.CROSSHAIR, controller.canvas.getCursor());
             assertInstanceOf(FillTool.class, controller.canvasManager.getTool());
         });
+    }
+
+    @Test
+    void onDescribeShowsTheModelsDescriptionOfTheDrawing() throws Exception {
+        useFakeOllama().answer("/api/generate", 200,
+                "{\"response\": \"{\\\"title\\\": \\\"Sunny House\\\", \\\"description\\\": \\\"A yellow house.\\\"}\"}");
+
+        FxTestSupport.runAndWait(() -> controller.onDescribe());
+
+        assertTrue(descriptionShown.await(TIMEOUT_SECONDS, TimeUnit.SECONDS), "a description should be shown");
+        assertEquals(new Description("Sunny House", "A yellow house."), shownDescriptions.getFirst());
+        assertEquals(shownDescriptions.getFirst(), controller.lastDescription);
+        assertEquals(1, progressShown.get(), "progress should be shown while the model thinks");
+        awaitCondition(() -> progressClosed.get() == 1, "progress should be closed once the answer is in");
+    }
+
+    @Test
+    void onDescribeSendsTheCanvasToTheConfiguredModel() throws Exception {
+        useFakeOllama().answer("/api/generate", 200,
+                "{\"response\": \"{\\\"title\\\": \\\"t\\\", \\\"description\\\": \\\"d\\\"}\"}");
+        controller.model = "llava:7b";
+
+        FxTestSupport.runAndWait(() -> controller.onDescribe());
+
+        assertTrue(descriptionShown.await(TIMEOUT_SECONDS, TimeUnit.SECONDS));
+        String body = ollama.requests().getLast().body();
+        assertTrue(body.contains("\"model\":\"llava:7b\""), body);
+        assertTrue(body.contains("\"images\":[\""), "the canvas should be sent as an image");
+    }
+
+    @Test
+    void onDescribeReportsOllamasOwnError() throws Exception {
+        useFakeOllama().answer("/api/generate", 404, "{\"error\":\"model \\\"qwen3.5:4b\\\" not found, try pulling it first\"}");
+
+        FxTestSupport.runAndWait(() -> controller.onDescribe());
+
+        assertErrorReported("Could not describe the drawing");
+        assertEquals("model \"qwen3.5:4b\" not found, try pulling it first.", reportedErrorDetails.getFirst());
+        awaitCondition(() -> progressClosed.get() == 1, "progress should be closed after an error");
+    }
+
+    @Test
+    void onDescribeExplainsWhenOllamaIsNotRunning() throws Exception {
+        controller.ollama = new OllamaClient(URI.create("http://127.0.0.1:" + freePort()));
+
+        FxTestSupport.runAndWait(() -> controller.onDescribe());
+
+        assertErrorReported("Could not describe the drawing");
+        assertTrue(reportedErrorDetails.getFirst().contains("Make sure Ollama is installed and running"),
+                reportedErrorDetails.getFirst());
+    }
+
+    @Test
+    void cancellingTheProgressStopsTheDescription() throws Exception {
+        useFakeOllama().answer("/api/generate", 200,
+                "{\"response\": \"{\\\"title\\\": \\\"t\\\", \\\"description\\\": \\\"d\\\"}\"}", 10_000);
+        FxTestSupport.runAndWait(() -> controller.onDescribe());
+        ollama.awaitRequest();
+
+        FxTestSupport.runAndWait(() -> cancelProgress.get().run());
+
+        awaitCondition(() -> progressClosed.get() == 1, "progress should be closed once cancelled");
+        assertTrue(shownDescriptions.isEmpty(), "a cancelled description shouldn't be shown");
+        assertTrue(reportedErrors.isEmpty(), "cancelling isn't an error");
+    }
+
+    @Test
+    void theAiMenuDisablesDescribeWhileOllamaIsNotRunning() throws Exception {
+        controller.ollama = new OllamaClient(URI.create("http://127.0.0.1:" + freePort()));
+
+        FxTestSupport.runAndWait(() -> controller.onAiMenuShowing());
+
+        awaitCondition(() -> controller.describeItem.isDisable(), "Describe Drawing should be disabled");
+    }
+
+    @Test
+    void theAiMenuEnablesDescribeOnceOllamaRuns() throws Exception {
+        FxTestSupport.runAndWait(() -> controller.describeItem.setDisable(true));
+        useFakeOllama();
+
+        FxTestSupport.runAndWait(() -> controller.onAiMenuShowing());
+
+        awaitCondition(() -> !controller.describeItem.isDisable(), "Describe Drawing should be enabled again");
+    }
+
+    /**
+     * Points the controller at a fake Ollama server, stopped after the test.
+     */
+    private FakeOllama useFakeOllama() throws IOException {
+        ollama = new FakeOllama();
+        controller.ollama = new OllamaClient(ollama.address());
+        return ollama;
+    }
+
+    @AfterEach
+    void stopFakeOllama() {
+        if (ollama != null) {
+            ollama.close();
+        }
+    }
+
+    private static int freePort() throws IOException {
+        try (ServerSocket socket = new ServerSocket(0)) {
+            return socket.getLocalPort();
+        }
     }
 
     @Test
