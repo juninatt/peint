@@ -1,0 +1,36 @@
+<svg viewBox="0 0 800 480" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="800" height="480" fill="#f5e6d3"/>
+  
+  <!-- Rug Pattern (Simple geometric shapes) -->
+  <rect x="100" y="150" width="600" height="280" fill="#c9a97b"/>
+  <circle cx="400" cy="240" r="80" fill="#d4b483" opacity="0.6"/>
+  <rect x="150" y="200" width="120" height="120" fill="#e8d5b5" opacity="0.6"/>
+  <polygon points="600,220 640,300 560,340" fill="#f9ebd9" opacity="0.6"/>
+  
+  <!-- Cat Body -->
+  <ellipse cx="400" cy="280" rx="120" ry="90" fill="#e0b0a0"/>
+  
+  <!-- Cat Head -->
+  <circle cx="380" cy="220" r="70" fill="#d59c85"/>
+  
+  <!-- Cat Ears -->
+  <polygon points="340,160 310,190 360,170" fill="#c08a75"/>
+  <polygon points="420,160 390,190 440,170" fill="#c08a75"/>
+  
+  <!-- Cat Face -->
+  <circle cx="360" cy="210" r="10" fill="#333"/>
+  <circle cx="400" cy="210" r="10" fill="#333"/>
+  <ellipse cx="385" cy="225" rx="15" ry="8" fill="#ffccaa"/>
+  
+  <!-- Cat Tail -->
+  <path d="M 480 290 Q 560 320 540 380" stroke="#d59c85" stroke-width="25" fill="none" stroke-linecap="round"/>
+  
+  <!-- Front Paws -->
+  <ellipse cx="340" cy="310" rx="25" ry="18" fill="#fff"/>
+  <ellipse cx="460" cy="310" rx="25" ry="18" fill="#fff"/>
+  
+  <!-- Back Paws -->
+  <ellipse cx="340" cy="340" rx="20" ry="15" fill="#fff"/>
+  <ellipse cx="460" cy="340" rx="20" ry="15" fill="#fff"/>
+</svg>

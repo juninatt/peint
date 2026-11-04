@@ -1,0 +1,42 @@
+<svg viewBox="0 0 800 480" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="skyGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#FF99CC;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#FFDDAA;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#884422;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="sunGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#FFF5B7;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#FFCC00;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+
+  <!-- Sky Background -->
+  <rect width="800" height="480" fill="url(#skyGradient)" />
+
+  <!-- Sun -->
+  <circle cx="720" cy="150" r="60" fill="url(#sunGradient)" />
+
+  <!-- Sea Background -->
+  <rect width="800" height="320" fill="#4A90E2" />
+
+  <!-- Waves (Foreground) -->
+  <path d="M0 320 Q 150 360 300 320 T 600 320 T 800 320 L 800 480 L 0 480 Z" fill="#2E7CB5" />
+  <path d="M0 340 Q 150 380 300 340 T 600 340 T 800 340 L 800 460 L 0 460 Z" fill="#1E5F99" />
+
+  <!-- Sailboat Hull -->
+  <path d="M250 320 L 300 360 L 250 400 Z" fill="#FF6B6B" />
+  <ellipse cx="275" cy="380" rx="15" ry="10" fill="#FFFFFF" />
+
+  <!-- Sailboat Mast -->
+  <rect x="270" y="320" width="10" height="80" fill="#333333" />
+
+  <!-- Main Sail (Left) -->
+  <path d="M265 325 L 275 405 L 285 325 Z" fill="#FFFFFF" />
+
+  <!-- Jib Sail (Front) -->
+  <path d="M275 405 L 310 390 L 285 325 Z" fill="#FFD93D" />
+
+  <!-- Sunset Reflection on Water -->
+  <ellipse cx="680" cy="320" rx="100" ry="40" fill="#FFCC00" opacity="0.4" />
+</svg>
