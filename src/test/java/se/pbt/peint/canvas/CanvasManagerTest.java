@@ -15,6 +15,9 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import se.pbt.peint.FxTestSupport;
+import se.pbt.peint.svg.SvgFormatException;
+import se.pbt.peint.svg.SvgImage;
+import se.pbt.peint.svg.SvgReader;
 
 import javax.imageio.ImageIO;
 import java.awt.Graphics2D;
@@ -551,6 +554,146 @@ class CanvasManagerTest {
 
             assertEquals(0, canvasManager.changeCount());
         });
+    }
+
+    @Test
+    void drawSvgScalesTheImageToFillACanvasOfTheSameProportions() {
+        FxTestSupport.runAndWait(() -> {
+            container.resize(200, 120); // the canvas grows to 200x120, the image's 5:3
+
+            canvasManager.drawSvg(svg("""
+                    <rect x="0" y="0" width="400" height="480" fill="red"/>
+                    <rect x="400" y="0" width="400" height="480" fill="blue"/>
+                    """));
+
+            assertEquals(Color.RED, canvasPixel(50, 60));
+            assertEquals(Color.BLUE, canvasPixel(150, 60));
+            assertEquals(Color.RED, canvasPixel(1, 1), "the image should reach the canvas's corner");
+        });
+    }
+
+    @Test
+    void drawSvgKeepsTheImagesProportionsAndCentersIt() {
+        FxTestSupport.runAndWait(() -> {
+            // An 800x480 image on the 100x100 canvas: 100x60, with 20 px above and below.
+            canvasManager.drawSvg(svg("<rect width=\"800\" height=\"480\" fill=\"red\"/>"));
+
+            assertEquals(Color.RED, canvasPixel(50, 50));
+            assertEquals(Color.WHITE, canvasPixel(50, 5), "the space above the image keeps the canvas");
+            assertEquals(Color.WHITE, canvasPixel(50, 95), "and so does the space below");
+        });
+    }
+
+    @Test
+    void drawSvgDrawsEveryKindOfShape() {
+        FxTestSupport.runAndWait(() -> {
+            container.resize(200, 120);
+
+            canvasManager.drawSvg(svg("""
+                    <circle cx="100" cy="100" r="60" fill="red"/>
+                    <ellipse cx="300" cy="100" rx="60" ry="40" fill="lime"/>
+                    <polygon points="440,40 560,40 500,160" fill="blue"/>
+                    <path d="M640 40 L760 40 L760 160 L640 160 Z" fill="#ffff00"/>
+                    <line x1="0" y1="300" x2="800" y2="300" stroke="black" stroke-width="40"/>
+                    <rect x="300" y="380" width="200" height="80" rx="20" fill="none" stroke="magenta" stroke-width="20"/>
+                    """));
+
+            assertEquals(Color.RED, canvasPixel(25, 25), "circle");
+            assertEquals(Color.LIME, canvasPixel(75, 25), "ellipse");
+            assertEquals(Color.BLUE, canvasPixel(125, 20), "polygon");
+            assertEquals(Color.YELLOW, canvasPixel(175, 25), "path");
+            assertEquals(Color.BLACK, canvasPixel(100, 75), "line");
+            assertEquals(Color.MAGENTA, canvasPixel(100, 95), "the outline of a rounded rectangle");
+            assertEquals(Color.WHITE, canvasPixel(100, 105), "an unfilled rectangle's inside");
+        });
+    }
+
+    @Test
+    void drawSvgPaintsGradientsAndOpacity() {
+        FxTestSupport.runAndWait(() -> {
+            container.resize(200, 120);
+
+            canvasManager.drawSvg(svg("""
+                    <defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0" stop-color="white"/><stop offset="1" stop-color="black"/>
+                    </linearGradient></defs>
+                    <rect width="400" height="480" fill="url(#g)"/>
+                    <rect x="400" width="400" height="480" fill="red" opacity="0.5"/>
+                    """));
+
+            assertTrue(canvasPixel(50, 10).getBrightness() > canvasPixel(50, 110).getBrightness() + 0.5,
+                    "the gradient should run from light at the top to dark at the bottom");
+            Color halfRed = canvasPixel(150, 60);
+            assertEquals(1.0, halfRed.getRed(), 0.02);
+            assertEquals(0.5, halfRed.getGreen(), 0.02, "half-transparent red over white is pink");
+        });
+    }
+
+    @Test
+    void drawSvgMovesShapesByTheirTranslateTransforms() {
+        FxTestSupport.runAndWait(() -> {
+            container.resize(200, 120);
+
+            canvasManager.drawSvg(svg("<g transform=\"translate(400, 0)\"><rect width=\"400\" height=\"480\" fill=\"red\"/></g>"));
+
+            assertEquals(Color.WHITE, canvasPixel(50, 60));
+            assertEquals(Color.RED, canvasPixel(150, 60));
+        });
+    }
+
+    @Test
+    void drawSvgLeavesOutAPathItCantRead() {
+        FxTestSupport.runAndWait(() -> {
+            container.resize(200, 120);
+
+            canvasManager.drawSvg(svg("""
+                    <path d="this is not path data" fill="blue"/>
+                    <rect width="800" height="480" fill="red"/>
+                    """));
+
+            assertEquals(Color.RED, canvasPixel(100, 60), "the rest of the image should still be drawn");
+        });
+    }
+
+    @Test
+    void oneUndoRemovesAWholeSvgDrawing() {
+        FxTestSupport.runAndWait(() -> {
+            container.resize(200, 120);
+            long changesBefore = canvasManager.changeCount();
+
+            canvasManager.drawSvg(svg("""
+                    <rect width="800" height="480" fill="red"/>
+                    <circle cx="400" cy="240" r="100" fill="blue"/>
+                    """));
+            canvasManager.undo();
+
+            assertEquals(Color.WHITE, canvasPixel(100, 60));
+            assertEquals(Color.WHITE, canvasPixel(10, 10));
+            assertEquals(changesBefore + 2, canvasManager.changeCount(), "drawing and undoing are one change each");
+        });
+    }
+
+    @Test
+    void drawSvgLeavesTheBrushAsItWas() {
+        FxTestSupport.runAndWait(() -> {
+            canvasManager.drawSvg(svg("<line x1=\"0\" y1=\"0\" x2=\"800\" y2=\"480\" stroke=\"red\" stroke-width=\"80\" opacity=\"0.3\"/>"));
+            canvasManager.clearCanvas();
+
+            drag(10, 50, 90, 50, 8);
+
+            assertTrue(pixel(50, 50).getBrightness() < 0.2, "the brush should draw opaque black again: " + pixel(50, 50));
+        });
+    }
+
+    /**
+     * Reads an 800x480 SVG image with the given shapes.
+     */
+    private static SvgImage svg(String shapes) {
+        try {
+            return SvgReader.read("<svg viewBox=\"0 0 800 480\" xmlns=\"http://www.w3.org/2000/svg\">" + shapes + "</svg>");
+        } catch (SvgFormatException e) {
+            throw new AssertionError(e);
+        }
     }
 
     @Test

@@ -9,6 +9,9 @@ import javafx.scene.image.WritableImage;
 import javafx.scene.layout.Region;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Rectangle;
+import se.pbt.peint.svg.Appearance;
+import se.pbt.peint.svg.SvgImage;
+import se.pbt.peint.svg.SvgShape;
 
 import java.awt.image.BufferedImage;
 
@@ -187,6 +190,92 @@ public final class CanvasManager {
         beginEdit();
         gc.drawImage(SwingFXUtils.toFXImage(image, null), 0, 0);
         commitEdit(new Rectangle2D(0, 0, image.getWidth(), image.getHeight()));
+    }
+
+    /**
+     * Draws an SVG image's shapes onto the canvas, as one change that a
+     * single undo removes.
+     *
+     * <p>The image is scaled to fit the canvas, keeping its proportions, and
+     * centered; any space left beside it keeps the canvas's current content.
+     * A path whose data JavaFX can't read is left out.</p>
+     */
+    public void drawSvg(SvgImage image) {
+        beginEdit();
+        double scale = Math.min(canvas.getWidth() / image.width(), canvas.getHeight() / image.height());
+        gc.save();
+        try {
+            gc.translate((canvas.getWidth() - image.width() * scale) / 2, (canvas.getHeight() - image.height() * scale) / 2);
+            gc.scale(scale, scale);
+            gc.translate(-image.minX(), -image.minY());
+            for (SvgShape shape : image.shapes()) {
+                drawShape(shape);
+            }
+        } finally {
+            gc.restore();
+        }
+        commitEdit(new Rectangle2D(0, 0, canvas.getWidth(), canvas.getHeight()));
+    }
+
+    /**
+     * Draws one shape in the image's coordinates: filled first, then
+     * outlined, as SVG does.
+     */
+    private void drawShape(SvgShape shape) {
+        Appearance appearance = shape.appearance();
+        gc.save();
+        try {
+            gc.translate(appearance.offsetX(), appearance.offsetY());
+            gc.setGlobalAlpha(appearance.opacity());
+            gc.setFill(appearance.fill());
+            gc.setStroke(appearance.stroke());
+            gc.setLineWidth(appearance.strokeWidth());
+            gc.setLineCap(appearance.lineCap());
+            boolean fill = appearance.fill() != null;
+            boolean stroke = appearance.stroke() != null && appearance.strokeWidth() > 0;
+
+            switch (shape) {
+                case SvgShape.Rect rect -> {
+                    double arc = rect.cornerRadius() * 2;
+                    if (fill) gc.fillRoundRect(rect.x(), rect.y(), rect.width(), rect.height(), arc, arc);
+                    if (stroke) gc.strokeRoundRect(rect.x(), rect.y(), rect.width(), rect.height(), arc, arc);
+                }
+                case SvgShape.Ellipse ellipse -> {
+                    double x = ellipse.centerX() - ellipse.radiusX();
+                    double y = ellipse.centerY() - ellipse.radiusY();
+                    if (fill) gc.fillOval(x, y, ellipse.radiusX() * 2, ellipse.radiusY() * 2);
+                    if (stroke) gc.strokeOval(x, y, ellipse.radiusX() * 2, ellipse.radiusY() * 2);
+                }
+                case SvgShape.Line line -> {
+                    if (stroke) gc.strokeLine(line.x1(), line.y1(), line.x2(), line.y2());
+                }
+                case SvgShape.Polygon polygon -> {
+                    int count = polygon.points().size() / 2;
+                    double[] xs = new double[count];
+                    double[] ys = new double[count];
+                    for (int i = 0; i < count; i++) {
+                        xs[i] = polygon.points().get(2 * i);
+                        ys[i] = polygon.points().get(2 * i + 1);
+                    }
+                    // SVG fills a polyline as if it were closed, but only outlines a polygon closed.
+                    if (fill) gc.fillPolygon(xs, ys, count);
+                    if (stroke && polygon.closed()) gc.strokePolygon(xs, ys, count);
+                    if (stroke && !polygon.closed()) gc.strokePolyline(xs, ys, count);
+                }
+                case SvgShape.Path path -> {
+                    gc.beginPath();
+                    try {
+                        gc.appendSVGPath(path.data());
+                    } catch (IllegalArgumentException unreadablePath) {
+                        return;
+                    }
+                    if (fill) gc.fill();
+                    if (stroke) gc.stroke();
+                }
+            }
+        } finally {
+            gc.restore();
+        }
     }
 
     /**
