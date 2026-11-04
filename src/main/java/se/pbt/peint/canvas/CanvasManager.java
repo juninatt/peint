@@ -31,6 +31,9 @@ public final class CanvasManager {
     private Color drawingColor;
     private Tool tool = new BrushTool();
 
+    // How many times the drawing has changed; see changeCount().
+    private long changeCount;
+
     // The canvas as it was when the current edit began; see beginEdit().
     private WritableImage editBefore;
 
@@ -147,6 +150,7 @@ public final class CanvasManager {
         Edit edit = history.undo();
         if (edit != null) {
             gc.drawImage(edit.before(), edit.x(), edit.y());
+            changeCount++;
         }
     }
 
@@ -158,6 +162,7 @@ public final class CanvasManager {
         Edit edit = history.redo();
         if (edit != null) {
             gc.drawImage(edit.after(), edit.x(), edit.y());
+            changeCount++;
         }
     }
 
@@ -248,6 +253,7 @@ public final class CanvasManager {
 
         WritableImage beforeRegion = new WritableImage(before.getPixelReader(), x, y, width, height);
         history.record(new Edit(x, y, beforeRegion, snapshotRegion(x, y, width, height)));
+        changeCount++;
     }
 
     /**
@@ -284,6 +290,17 @@ public final class CanvasManager {
      */
     GraphicsContext graphics() {
         return gc;
+    }
+
+    /**
+     * Counts the changes made to the drawing so far, including undoing and
+     * redoing them. Comparing two counts tells whether the drawing changed
+     * in between, e.g. since it was last described.
+     *
+     * @return how many times the drawing has changed
+     */
+    public long changeCount() {
+        return changeCount;
     }
 
     /**

@@ -145,8 +145,10 @@ public class PeintController {
     OllamaClient ollama = new OllamaClient(aiSettings.address());
     String model = aiSettings.model();
 
-    // The most recent description of the drawing, or null before the first.
+    // The most recent description of the drawing, or null before the first,
+    // and the canvas's change count when it was made.
     Description lastDescription;
+    private long changeCountWhenDescribed;
 
     // Where the width slider's value goes: the selected tool's width setter,
     // or nothing while the selected tool has no width.
@@ -219,6 +221,10 @@ public class PeintController {
         FileChooser fileChooser = new FileChooser();
         fileChooser.setTitle("Save Canvas As Image");
         fileChooser.getExtensionFilters().addAll(saveFilters());
+        String suggested = suggestedFileName();
+        if (suggested != null) {
+            fileChooser.setInitialFileName(suggested);
+        }
 
         File chosenFile = fileChooser.showSaveDialog(canvas.getScene().getWindow());
         if (chosenFile == null) {
@@ -262,6 +268,20 @@ public class PeintController {
         });
 
         BackgroundTasks.run(saveTask, "peint-image-save");
+    }
+
+    /**
+     * Suggests a name to save the drawing as, from the title the model gave
+     * it, e.g. {@code sunny-house.png}.
+     *
+     * @return the name, or {@code null} if the drawing hasn't been described,
+     *         or has changed since, so the title may no longer fit
+     */
+    String suggestedFileName() {
+        if (lastDescription == null || canvasManager.changeCount() != changeCountWhenDescribed) {
+            return null;
+        }
+        return lastDescription.fileName() + ".png";
     }
 
     /**
@@ -395,6 +415,8 @@ public class PeintController {
         WritableImage snapshot = new WritableImage((int) canvas.getWidth(), (int) canvas.getHeight());
         canvas.snapshot(null, snapshot);
         BufferedImage drawing = SwingFXUtils.fromFXImage(snapshot, null);
+        // The description is of the drawing as it is now, whatever happens meanwhile.
+        long changeCountOfDrawing = canvasManager.changeCount();
 
         DrawingDescriber describer = new DrawingDescriber(ollama, model);
         Task<Description> describeTask = new Task<>() {
@@ -410,6 +432,7 @@ public class PeintController {
         describeTask.setOnSucceeded(event -> {
             closeProgress.run();
             lastDescription = describeTask.getValue();
+            changeCountWhenDescribed = changeCountOfDrawing;
             showDescription(lastDescription);
         });
         describeTask.setOnFailed(event -> {

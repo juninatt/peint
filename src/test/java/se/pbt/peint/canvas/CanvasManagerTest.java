@@ -526,6 +526,34 @@ class CanvasManagerTest {
     }
 
     @Test
+    void everyChangeToTheDrawingIsCounted() {
+        FxTestSupport.runAndWait(() -> {
+            assertEquals(0, canvasManager.changeCount());
+
+            drag(10, 50, 90, 50, 8);
+            canvasManager.bucketFill(50, 20, Color.RED);
+            canvasManager.undo();
+            canvasManager.redo();
+            canvasManager.clearCanvas();
+            canvasManager.loadImage(blueImage(20, 20));
+
+            assertEquals(6, canvasManager.changeCount(), "stroke, fill, undo, redo, clear and open");
+        });
+    }
+
+    @Test
+    void thingsThatDontChangeTheDrawingAreNotCounted() {
+        FxTestSupport.runAndWait(() -> {
+            fireMouse(MouseEvent.MOUSE_PRESSED, 50, 50); // a press without a drag draws nothing
+            fireMouse(MouseEvent.MOUSE_RELEASED, 50, 50);
+            canvasManager.undo(); // nothing to undo
+            container.resize(200, 200); // growing keeps the drawing as it is
+
+            assertEquals(0, canvasManager.changeCount());
+        });
+    }
+
+    @Test
     void theBrushIsSelectedByDefault() {
         assertInstanceOf(BrushTool.class, canvasManager.getTool());
     }

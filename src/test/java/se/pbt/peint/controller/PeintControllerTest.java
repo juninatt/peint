@@ -64,6 +64,7 @@ import java.util.prefs.Preferences;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -413,6 +414,39 @@ class PeintControllerTest {
         assertEquals(shownDescriptions.getFirst(), controller.lastDescription);
         assertEquals(1, progressShown.get(), "progress should be shown while the model thinks");
         awaitCondition(() -> progressClosed.get() == 1, "progress should be closed once the answer is in");
+    }
+
+    @Test
+    void saveSuggestsAFileNameFromTheDescription() throws Exception {
+        describeAs("Sunny House");
+
+        assertEquals("sunny-house.png", controller.suggestedFileName());
+    }
+
+    @Test
+    void saveSuggestsNoFileNameBeforeTheDrawingIsDescribed() {
+        assertNull(controller.suggestedFileName());
+    }
+
+    @Test
+    void saveSuggestsNoFileNameOnceTheDrawingHasChanged() throws Exception {
+        describeAs("Sunny House");
+
+        FxTestSupport.runAndWait(() -> controller.canvasManager.bucketFill(10, 10, Color.RED));
+
+        assertNull(controller.suggestedFileName(), "the title may no longer fit the drawing");
+    }
+
+    /**
+     * Describes the drawing through the fake Ollama server, which gives it
+     * the given title, and waits for the description to be shown.
+     */
+    private void describeAs(String title) throws Exception {
+        String modelAnswer = "{\"title\": \"" + title + "\", \"description\": \"d\"}";
+        String ollamaAnswer = "{\"response\": \"" + modelAnswer.replace("\"", "\\\"") + "\"}";
+        useFakeOllama().answer("/api/generate", 200, ollamaAnswer);
+        FxTestSupport.runAndWait(() -> controller.onDescribe());
+        assertTrue(descriptionShown.await(TIMEOUT_SECONDS, TimeUnit.SECONDS), "a description should be shown");
     }
 
     @Test
