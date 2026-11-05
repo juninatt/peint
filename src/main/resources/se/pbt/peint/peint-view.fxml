@@ -84,6 +84,11 @@
                             <FontIcon iconLiteral="fas-magic" iconSize="16" />
                         </graphic>
                     </MenuItem>
+                    <MenuItem fx:id="drawItem" text="Draw from Description…" onAction="#onDrawFromDescription" accelerator="Shortcut+Shift+D">
+                        <graphic>
+                            <FontIcon iconLiteral="fas-paint-brush" iconSize="16" />
+                        </graphic>
+                    </MenuItem>
                     <SeparatorMenuItem />
                     <MenuItem text="AI Settings…" onAction="#onAiSettings">
                         <graphic>

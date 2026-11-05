@@ -77,6 +77,7 @@ class PeintViewTest {
         assertEquals(KeyCombination.valueOf("E"), accelerators.get("Eraser"));
         assertEquals(KeyCombination.valueOf("F"), accelerators.get("Fill"));
         assertEquals(KeyCombination.valueOf("Shortcut+D"), accelerators.get("Describe Drawing\u2026"));
+        assertEquals(KeyCombination.valueOf("Shortcut+Shift+D"), accelerators.get("Draw from Description\u2026"));
     }
 
     @Test

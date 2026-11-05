@@ -91,6 +91,9 @@ class PeintControllerTest {
 
     private FakeOllama ollama;
 
+    // The scene the "what should the AI draw" dialog "returns", instead of opening it.
+    private final AtomicReference<Optional<String>> answerForScene = new AtomicReference<>(Optional.empty());
+
     // The settings the AI settings dialog "returns", instead of opening it.
     private final AtomicReference<Optional<AiSettings>> answerForAiSettings = new AtomicReference<>(Optional.empty());
 
@@ -133,6 +136,11 @@ class PeintControllerTest {
                 Optional<AiSettings> askForAiSettings(AiSettings current) {
                     return answerForAiSettings.get();
                 }
+
+                @Override
+                Optional<String> askForScene(String current) {
+                    return answerForScene.get();
+                }
             };
             controller.preferences = preferences;
             controller.canvas = new Canvas(50, 50);
@@ -143,6 +151,7 @@ class PeintControllerTest {
             controller.colorPicker = new ColorPicker();
             controller.toggleToolbarPositionButton = new Button();
             controller.describeItem = new MenuItem("Describe Drawing");
+            controller.drawItem = new MenuItem("Draw from Description");
             controller.toolGroup = new ToggleGroup();
             controller.brushButton = new ToggleButton();
             controller.eraserButton = new ToggleButton();
@@ -506,6 +515,7 @@ class PeintControllerTest {
         FxTestSupport.runAndWait(() -> controller.onAiMenuShowing());
 
         awaitCondition(() -> controller.describeItem.isDisable(), "Describe Drawing should be disabled");
+        awaitCondition(() -> controller.drawItem.isDisable(), "Draw from Description should be disabled");
     }
 
     @Test
@@ -516,6 +526,7 @@ class PeintControllerTest {
         FxTestSupport.runAndWait(() -> controller.onAiMenuShowing());
 
         awaitCondition(() -> !controller.describeItem.isDisable(), "Describe Drawing should be enabled again");
+        awaitCondition(() -> !controller.drawItem.isDisable(), "Draw from Description should be enabled again");
     }
 
     /**
@@ -533,6 +544,65 @@ class PeintControllerTest {
             ollama.close();
         }
         preferences.removeNode();
+    }
+
+    @Test
+    void drawFromDescriptionDrawsTheModelsSceneOnTheCanvas() throws Exception {
+        useFakeOllama().answer("/api/generate", 200, wrappedForOllama(
+                "<svg viewBox='0 0 50 50' xmlns='http://www.w3.org/2000/svg'><rect width='50' height='50' fill='red'/></svg>"));
+        answerForScene.set(Optional.of("  a red square "));
+
+        FxTestSupport.runAndWait(() -> controller.onDrawFromDescription());
+
+        awaitCondition(() -> Color.RED.equals(canvasPixel(25, 25)), "the model's drawing should be on the canvas");
+        assertEquals(1, controller.canvasManager.changeCount(), "the drawing should be a single change");
+        assertEquals("a red square", controller.lastScene, "the scene should be offered again next time");
+        assertTrue(ollama.requests().getLast().body().contains("a red square"));
+        awaitCondition(() -> progressClosed.get() == 1, "progress should be closed once the drawing is in");
+    }
+
+    @Test
+    void drawFromDescriptionDoesNothingWhenTheDialogIsCancelled() throws Exception {
+        useFakeOllama();
+        answerForScene.set(Optional.empty());
+
+        FxTestSupport.runAndWait(() -> controller.onDrawFromDescription());
+
+        assertEquals(0, progressShown.get());
+        assertTrue(ollama.requests().stream().noneMatch(request -> request.path().equals("/api/generate")));
+    }
+
+    @Test
+    void drawFromDescriptionReportsWhenTheModelDrawsNothingUsable() throws Exception {
+        useFakeOllama().answer("/api/generate", 200, wrappedForOllama("I'd rather not draw today."));
+        answerForScene.set(Optional.of("a cat"));
+
+        FxTestSupport.runAndWait(() -> controller.onDrawFromDescription());
+
+        assertErrorReported("Could not draw the scene");
+        assertTrue(reportedErrorDetails.getFirst().contains("didn't draw a picture"), reportedErrorDetails.getFirst());
+        assertEquals(0, controller.canvasManager.changeCount(), "nothing should be drawn");
+    }
+
+    @Test
+    void cancellingTheProgressStopsTheDrawing() throws Exception {
+        useFakeOllama().answer("/api/generate", 200, wrappedForOllama("<svg viewBox='0 0 1 1'><rect width='1' height='1'/></svg>"), 10_000);
+        answerForScene.set(Optional.of("a cat"));
+        FxTestSupport.runAndWait(() -> controller.onDrawFromDescription());
+        ollama.awaitRequest();
+
+        FxTestSupport.runAndWait(() -> cancelProgress.get().run());
+
+        awaitCondition(() -> progressClosed.get() == 1, "progress should be closed once cancelled");
+        assertEquals(0, controller.canvasManager.changeCount(), "a cancelled drawing shouldn't be drawn");
+        assertTrue(reportedErrors.isEmpty(), "cancelling isn't an error");
+    }
+
+    /**
+     * Wraps a model's answer the way Ollama does.
+     */
+    private static String wrappedForOllama(String modelAnswer) {
+        return "{\"response\": \"" + modelAnswer.replace("\\", "\\\\").replace("\"", "\\\"") + "\"}";
     }
 
     @Test

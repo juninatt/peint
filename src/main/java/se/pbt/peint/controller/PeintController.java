@@ -20,6 +20,7 @@ import javafx.scene.control.ProgressIndicator;
 import javafx.scene.control.Slider;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
+import javafx.scene.control.TextInputDialog;
 import javafx.scene.control.ToggleButton;
 import javafx.scene.control.ToggleGroup;
 import javafx.scene.control.ToolBar;
@@ -38,6 +39,7 @@ import se.pbt.peint.ai.Description;
 import se.pbt.peint.ai.DrawingDescriber;
 import se.pbt.peint.ai.OllamaClient;
 import se.pbt.peint.ai.OllamaException;
+import se.pbt.peint.ai.SceneDrawer;
 import se.pbt.peint.canvas.BrushTool;
 import se.pbt.peint.canvas.CanvasManager;
 import se.pbt.peint.canvas.EraserTool;
@@ -45,6 +47,7 @@ import se.pbt.peint.canvas.FillTool;
 import se.pbt.peint.canvas.FloodFillProcessor;
 import se.pbt.peint.canvas.Tool;
 import se.pbt.peint.support.BackgroundTasks;
+import se.pbt.peint.svg.SvgImage;
 import se.pbt.peint.support.ImageFileService;
 
 import java.awt.image.BufferedImage;
@@ -127,6 +130,9 @@ public class PeintController {
     @FXML
     MenuItem describeItem;
 
+    @FXML
+    MenuItem drawItem;
+
     CanvasManager canvasManager;
     ToolbarManager toolbarManager;
     final ImageFileService imageFileService = new ImageFileService();
@@ -144,6 +150,9 @@ public class PeintController {
     AiSettings aiSettings = AiSettings.DEFAULTS;
     OllamaClient ollama = new OllamaClient(aiSettings.address());
     String model = aiSettings.model();
+
+    // The scene the user last asked the model to draw, offered again next time.
+    String lastScene = "";
 
     // The most recent description of the drawing, or null before the first,
     // and the canvas's change count when it was made.
@@ -399,7 +408,10 @@ public class PeintController {
                 return ollama.isAvailable();
             }
         };
-        check.setOnSucceeded(event -> describeItem.setDisable(!check.getValue()));
+        check.setOnSucceeded(event -> {
+            describeItem.setDisable(!check.getValue());
+            drawItem.setDisable(!check.getValue());
+        });
         BackgroundTasks.run(check, "peint-ollama-check");
     }
 
@@ -443,6 +455,64 @@ public class PeintController {
         describeTask.setOnCancelled(event -> closeProgress.run());
 
         BackgroundTasks.run(describeTask, "peint-describe");
+    }
+
+    /**
+     * Asks what to draw, then has the model draw it onto the canvas, showing
+     * progress, which can be cancelled, while it works. The drawing is one
+     * change, so Undo removes it, ready for another try.
+     */
+    @FXML
+    void onDrawFromDescription() {
+        Optional<String> scene = askForScene(lastScene);
+        if (scene.isEmpty() || scene.get().isBlank()) {
+            return;
+        }
+        lastScene = scene.get().strip();
+
+        SceneDrawer drawer = new SceneDrawer(ollama, model);
+        String toDraw = lastScene;
+        Task<SvgImage> drawTask = new Task<>() {
+            @Override
+            protected SvgImage call() throws IOException, InterruptedException {
+                return drawer.draw(toDraw);
+            }
+        };
+        Runnable closeProgress = showProgress("Drawing your scene\u2026",
+                "A model on your own computer is drawing \u201c" + toDraw + "\u201d. This can take a minute or two. "
+                        + "If you don't like the result, Undo removes it.",
+                () -> drawTask.cancel(true));
+
+        drawTask.setOnSucceeded(event -> {
+            closeProgress.run();
+            canvasManager.drawSvg(drawTask.getValue());
+        });
+        drawTask.setOnFailed(event -> {
+            closeProgress.run();
+            LOGGER.log(Level.WARNING, "Failed to draw the scene", drawTask.getException());
+            showError("Could not draw the scene", explainOllamaFailure(drawTask.getException()));
+        });
+        drawTask.setOnCancelled(event -> closeProgress.run());
+
+        BackgroundTasks.run(drawTask, "peint-draw");
+    }
+
+    /**
+     * Asks what scene to draw, starting from the given text.
+     *
+     * @return the scene, or empty if the user cancelled
+     */
+    Optional<String> askForScene(String current) {
+        TextInputDialog dialog = new TextInputDialog(current);
+        dialog.setTitle("Peint");
+        dialog.setHeaderText("What should the AI draw?");
+        dialog.setContentText("Scene:");
+        dialog.getEditor().setPromptText("e.g. a sailboat on the sea at sunset");
+        dialog.getEditor().setPrefColumnCount(30);
+        dialog.initOwner(canvas.getScene().getWindow());
+        Node ok = dialog.getDialogPane().lookupButton(ButtonType.OK);
+        ok.disableProperty().bind(dialog.getEditor().textProperty().isEmpty());
+        return dialog.showAndWait();
     }
 
     /**
