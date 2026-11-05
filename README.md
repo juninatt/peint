@@ -20,6 +20,7 @@ Peint is a simple paint application built in JavaFX, inspired by classic Paint t
 - **Movable toolbar**: Toggle the toolbar between the top and the left side of the window.
 - **Light and dark mode**: The window follows the operating system's light or dark mode.
 - **Describe the drawing (AI)**: *AI → Describe Drawing* asks a model running on your own computer for a title and a description of the drawing, which can be copied as alt text. Saving afterwards suggests a file name from the title, such as `sunny-house.png`.
+- **Draw from a description (AI)**: *AI → Draw from Description* has the model draw a scene you describe, such as "a sailboat on the sea at sunset", in simple shapes like a children's book illustration. The drawing is one change, so Undo removes it for another try.
 
 
 ## AI Features
@@ -30,9 +31,11 @@ The AI menu uses [Ollama](https://ollama.com) on your own computer: nothing is s
    ```
    ollama pull qwen3.5:4b
    ```
-3. In Peint, choose *AI → Describe Drawing* (Ctrl+D).
+3. In Peint, choose *AI → Describe Drawing* (Ctrl+D) or *AI → Draw from Description* (Ctrl+Shift+D).
 
-A different model or a different Ollama server, for instance one on a computer with a graphics card, can be chosen in *AI → AI Settings*. On a laptop CPU the default model takes about half a minute to a minute to answer; a graphics card makes it many times faster.
+A different model or a different Ollama server, for instance one on a computer with a graphics card, can be chosen in *AI → AI Settings*. On a laptop CPU the default model takes about half a minute to a minute to describe a drawing, and one to three minutes to draw a scene; a graphics card makes it many times faster.
+
+Drawings from a description vary a lot from one try to the next: some are charming, others miss parts of the scene or put them in odd places. Undo and try again, or describe the scene more simply. A larger model draws better, if your computer can run one.
 
 
 ## Keyboard Shortcuts
@@ -48,6 +51,7 @@ On macOS, use Cmd instead of Ctrl.
 | E                           | Eraser        |
 | F                           | Fill          |
 | Ctrl+D                      | Describe the drawing (AI) |
+| Ctrl+Shift+D                | Draw from a description (AI) |
 
 
 ## Technologies
