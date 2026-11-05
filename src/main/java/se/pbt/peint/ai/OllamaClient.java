@@ -82,8 +82,8 @@ public final class OllamaClient {
     }
 
     /**
-     * Asks a model for an answer to a prompt about an image, and waits for
-     * the whole answer.
+     * Asks a model for an answer to a prompt, about an image if one is
+     * given, and waits for the whole answer.
      *
      * <p>Thinking is turned off: it made answers several times slower in
      * testing, without making them better for Peint's short questions.</p>
@@ -91,7 +91,8 @@ public final class OllamaClient {
      * @param model the name of an installed model that can see images,
      *              e.g. {@code "qwen3.5:4b"}
      * @param prompt what to ask about the image
-     * @param png the image, PNG-encoded
+     * @param png the image, PNG-encoded, or {@code null} for a prompt about
+     *            no image
      * @param schema a JSON schema the answer must follow, or {@code null}
      *               for a free-form text answer
      * @return the model's answer; JSON following the schema, if one was given
@@ -108,7 +109,9 @@ public final class OllamaClient {
                 .put("prompt", prompt)
                 .put("stream", false)
                 .put("think", false);
-        body.putArray("images").add(Base64.getEncoder().encodeToString(png));
+        if (png != null) {
+            body.putArray("images").add(Base64.getEncoder().encodeToString(png));
+        }
         body.putObject("options").put("temperature", 0.2);
         if (schema != null) {
             body.set("format", schema);

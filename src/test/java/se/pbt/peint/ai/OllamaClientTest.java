@@ -81,6 +81,16 @@ class OllamaClientTest {
     }
 
     @Test
+    void generateSendsNoImageWhenThereIsNone() throws Exception {
+        ollama.answer("/api/generate", 200, "{\"response\":\"<svg/>\"}");
+
+        client.generate("m", "Draw a cat.", null, null);
+
+        JsonNode body = json.readTree(ollama.requests().getLast().body());
+        assertTrue(body.path("images").isMissingNode(), "a prompt without an image shouldn't send one");
+    }
+
+    @Test
     void generateSendsTheSchemaTheAnswerMustFollow() throws Exception {
         ollama.answer("/api/generate", 200, "{\"response\":\"{}\"}");
         ObjectNode schema = client.createObject().put("type", "object");

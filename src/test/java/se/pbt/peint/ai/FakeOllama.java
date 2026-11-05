@@ -9,6 +9,8 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -40,7 +42,9 @@ public final class FakeOllama implements AutoCloseable {
         return thread;
     });
     private final List<Request> requests = new CopyOnWriteArrayList<>();
-    private final Map<String, Answer> answers = new ConcurrentHashMap<>();
+    // Per path, the answers still to give: each request takes the first,
+    // and the last one is repeated for any requests after it.
+    private final Map<String, Deque<Answer>> answers = new ConcurrentHashMap<>();
     private volatile CountDownLatch requestReceived = new CountDownLatch(1);
 
     /**
@@ -68,7 +72,20 @@ public final class FakeOllama implements AutoCloseable {
 
     /** Answers requests to the given path after a delay, as a slow model would. */
     public FakeOllama answer(String path, int status, String body, long delayMillis) {
-        answers.put(path, new Answer(status, body, delayMillis));
+        answers.put(path, new ArrayDeque<>(List.of(new Answer(status, body, delayMillis))));
+        return this;
+    }
+
+    /**
+     * Answers successive requests to the given path with the given bodies in
+     * turn, all with the given status; the last body answers any further ones.
+     */
+    public FakeOllama answerInTurn(String path, int status, String... bodies) {
+        Deque<Answer> inTurn = new ArrayDeque<>();
+        for (String body : bodies) {
+            inTurn.add(new Answer(status, body, 0));
+        }
+        answers.put(path, inTurn);
         return this;
     }
 
@@ -90,7 +107,7 @@ public final class FakeOllama implements AutoCloseable {
             requestReceived.countDown();
         }
 
-        Answer answer = answers.getOrDefault(path, new Answer(404, "{\"error\":\"not found\"}", 0));
+        Answer answer = nextAnswer(path);
         try {
             Thread.sleep(answer.delayMillis());
         } catch (InterruptedException e) {
@@ -105,6 +122,16 @@ public final class FakeOllama implements AutoCloseable {
             }
         } catch (IOException clientGone) {
             // The client cancelled the request while the "model" was thinking.
+        }
+    }
+
+    private Answer nextAnswer(String path) {
+        Deque<Answer> inTurn = answers.get(path);
+        if (inTurn == null) {
+            return new Answer(404, "{\"error\":\"not found\"}", 0);
+        }
+        synchronized (inTurn) {
+            return inTurn.size() > 1 ? inTurn.removeFirst() : inTurn.getFirst();
         }
     }
 
