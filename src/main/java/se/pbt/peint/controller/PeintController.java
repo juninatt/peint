@@ -736,7 +736,7 @@ public class PeintController {
         fields.setVgap(8);
         fields.addRow(0, new Label("Ollama address"), address);
         fields.addRow(1, new Label("Model"), modelName);
-        fields.add(new Label("The model must be installed (ollama pull <model>) and able to see images."), 0, 2, 2, 1);
+        fields.add(new Label("The model must be able to see images. Peint downloads it when first needed."), 0, 2, 2, 1);
 
         Dialog<AiSettings> dialog = new Dialog<>();
         dialog.setTitle("Peint");
