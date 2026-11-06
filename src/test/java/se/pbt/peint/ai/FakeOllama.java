@@ -47,6 +47,10 @@ public final class FakeOllama implements AutoCloseable {
     private final Map<String, Deque<Answer>> answers = new ConcurrentHashMap<>();
     private volatile CountDownLatch requestReceived = new CountDownLatch(1);
 
+    // Per path, lines to stream one by one, and the pause between them.
+    private final Map<String, List<String>> streamedLines = new ConcurrentHashMap<>();
+    private final Map<String, Long> streamPauses = new ConcurrentHashMap<>();
+
     /**
      * Starts a fake server on a free port of this machine. By default it
      * answers {@code /api/version} like Ollama does, and every other path
@@ -89,6 +93,16 @@ public final class FakeOllama implements AutoCloseable {
         return this;
     }
 
+    /**
+     * Answers requests to the given path by streaming the given lines one at
+     * a time, pausing between them, as Ollama streams download progress.
+     */
+    public FakeOllama answerStreamed(String path, long pauseMillis, String... lines) {
+        streamedLines.put(path, List.of(lines));
+        streamPauses.put(path, pauseMillis);
+        return this;
+    }
+
     /** @return the requests received so far, in order */
     public List<Request> requests() {
         return List.copyOf(requests);
@@ -107,6 +121,10 @@ public final class FakeOllama implements AutoCloseable {
             requestReceived.countDown();
         }
 
+        if (streamedLines.containsKey(path)) {
+            stream(exchange, streamedLines.get(path), streamPauses.get(path));
+            return;
+        }
         Answer answer = nextAnswer(path);
         try {
             Thread.sleep(answer.delayMillis());
@@ -122,6 +140,20 @@ public final class FakeOllama implements AutoCloseable {
             }
         } catch (IOException clientGone) {
             // The client cancelled the request while the "model" was thinking.
+        }
+    }
+
+    private static void stream(HttpExchange exchange, List<String> lines, long pauseMillis) {
+        exchange.getResponseHeaders().set("Content-Type", "application/x-ndjson");
+        try (OutputStream out = exchange.getResponseBody()) {
+            exchange.sendResponseHeaders(200, 0); // chunked: the length isn't known up front
+            for (String line : lines) {
+                out.write((line + "\n").getBytes(StandardCharsets.UTF_8));
+                out.flush();
+                Thread.sleep(pauseMillis);
+            }
+        } catch (IOException | InterruptedException clientGoneOrClosing) {
+            // The client cancelled, or the fake server is stopping.
         }
     }
 

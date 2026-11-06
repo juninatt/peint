@@ -6,12 +6,21 @@ import tools.jackson.databind.json.JsonMapper;
 import tools.jackson.databind.node.ObjectNode;
 
 import java.io.IOException;
+import java.io.InterruptedIOException;
+import java.io.UncheckedIOException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Base64;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Consumer;
+import java.util.stream.Stream;
 
 /**
  * Talks to a local Ollama server over its HTTP API.
@@ -135,6 +144,118 @@ public final class OllamaClient {
             throw new IOException("Ollama's answer had no response text");
         }
         return text.asString();
+    }
+
+    /**
+     * Lists the models installed on the Ollama server.
+     *
+     * @return their full names, such as {@code qwen3.5:4b} or {@code llava:latest}
+     * @throws IOException if Ollama can't be reached or answers with an error
+     * @throws InterruptedException if the calling thread is interrupted
+     */
+    public List<String> listModels() throws IOException, InterruptedException {
+        HttpRequest request = HttpRequest.newBuilder(address.resolve("/api/tags"))
+                .timeout(AVAILABILITY_TIMEOUT)
+                .GET()
+                .build();
+        HttpResponse<String> response = http.send(request, HttpResponse.BodyHandlers.ofString());
+        JsonNode answer = parse(response.body());
+        if (response.statusCode() != 200) {
+            throw new OllamaException(response.statusCode(), "Ollama answered with HTTP " + response.statusCode());
+        }
+        List<String> names = new ArrayList<>();
+        for (JsonNode model : answer.path("models")) {
+            names.add(model.path("name").asString(""));
+        }
+        return names;
+    }
+
+    /**
+     * Checks whether a model is installed on the Ollama server. A name
+     * without a tag means its {@code latest} tag, as in Ollama itself.
+     *
+     * @throws IOException if Ollama can't be reached or answers with an error
+     * @throws InterruptedException if the calling thread is interrupted
+     */
+    public boolean hasModel(String model) throws IOException, InterruptedException {
+        return listModels().contains(withTag(model));
+    }
+
+    /**
+     * Waits for the next line of a streamed answer. The HTTP client reports
+     * problems while reading a stream as unchecked exceptions; this turns
+     * them back into an {@link InterruptedException} when the thread was
+     * interrupted, and an {@link IOException} otherwise.
+     */
+    private static boolean hasNext(Iterator<String> lines) throws IOException, InterruptedException {
+        try {
+            return lines.hasNext();
+        } catch (UncheckedIOException e) {
+            if (Thread.interrupted() || e.getCause() instanceof InterruptedIOException) {
+                throw new InterruptedException("Download cancelled");
+            }
+            throw e.getCause();
+        }
+    }
+
+    static String withTag(String model) {
+        return model.contains(":") ? model : model + ":latest";
+    }
+
+    /**
+     * Downloads a model to the Ollama server, reporting progress as it goes.
+     * Ollama keeps what it has downloaded, so a cancelled download resumes
+     * where it stopped the next time.
+     *
+     * <p>Interrupting the calling thread cancels the download: progress
+     * arrives several times a second, and the download stops at the next
+     * report after the interruption.</p>
+     *
+     * @param model the model to download, e.g. {@code qwen3.5:4b}
+     * @param progress told how far the download has come, on the calling thread
+     * @throws OllamaException if Ollama reports an error, such as an unknown model
+     * @throws IOException if Ollama can't be reached or the download breaks off
+     * @throws InterruptedException if the calling thread is interrupted
+     */
+    public void pull(String model, Consumer<PullProgress> progress) throws IOException, InterruptedException {
+        ObjectNode body = json.createObjectNode().put("model", model).put("stream", true);
+        HttpRequest request = HttpRequest.newBuilder(address.resolve("/api/pull"))
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(json.writeValueAsString(body)))
+                .build();
+        HttpResponse<Stream<String>> response = http.send(request, HttpResponse.BodyHandlers.ofLines());
+
+        // Each part (layer) of the model reports its own size and progress.
+        Map<String, long[]> parts = new LinkedHashMap<>();
+        boolean succeeded = false;
+        try (Stream<String> lines = response.body()) {
+            Iterator<String> reports = lines.iterator();
+            while (hasNext(reports)) {
+                if (Thread.interrupted()) {
+                    throw new InterruptedException("Download of " + model + " cancelled");
+                }
+                JsonNode report = parse(reports.next());
+                String error = report.path("error").asString("");
+                if (!error.isEmpty()) {
+                    throw new OllamaException(response.statusCode(), error);
+                }
+                String status = report.path("status").asString("");
+                String digest = report.path("digest").asString("");
+                if (!digest.isEmpty() && report.path("total").asLong(0) > 0) {
+                    parts.put(digest, new long[] {report.path("completed").asLong(0), report.path("total").asLong()});
+                }
+                long completed = parts.values().stream().mapToLong(part -> part[0]).sum();
+                long total = parts.values().stream().mapToLong(part -> part[1]).sum();
+                progress.accept(new PullProgress(status, completed, total));
+                succeeded |= status.equals("success");
+            }
+        }
+        if (response.statusCode() != 200) {
+            throw new OllamaException(response.statusCode(), "Ollama answered with HTTP " + response.statusCode());
+        }
+        if (!succeeded) {
+            throw new IOException("The download of " + model + " stopped before it was complete");
+        }
     }
 
     /**
