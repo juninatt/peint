@@ -57,7 +57,15 @@ public final class FakeOllama implements AutoCloseable {
      * with 404.
      */
     public FakeOllama() throws IOException {
-        server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+        this(0);
+    }
+
+    /**
+     * Starts a fake server on the given port of this machine, or a free one
+     * for 0.
+     */
+    public FakeOllama(int port) throws IOException {
+        server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), port), 0);
         server.createContext("/", this::handle);
         server.setExecutor(handlers);
         server.start();
