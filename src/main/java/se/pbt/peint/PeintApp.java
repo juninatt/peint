@@ -5,6 +5,7 @@ import javafx.fxml.FXMLLoader;
 import javafx.scene.Scene;
 import javafx.scene.control.Alert;
 import javafx.stage.Stage;
+import se.pbt.peint.controller.PeintController;
 import se.pbt.peint.support.SystemTheme;
 
 import java.io.IOException;
@@ -22,6 +23,8 @@ public class PeintApp extends Application {
 
     private static final Logger LOGGER = Logger.getLogger(PeintApp.class.getName());
 
+    private PeintController controller;
+
     /**
      * Starts the application by loading the main interface and displaying the primary stage.
      *
@@ -33,6 +36,7 @@ public class PeintApp extends Application {
         try {
             FXMLLoader fxmlLoader = new FXMLLoader(PeintApp.class.getResource("peint-view.fxml"));
             Scene scene = new Scene(fxmlLoader.load(), 1200, 800);
+            controller = fxmlLoader.getController();
             stage.setTitle("Peint - Your Drawing App");
             stage.setScene(scene);
             stage.show();
@@ -54,6 +58,17 @@ public class PeintApp extends Application {
         alert.setHeaderText("Could not load the application window");
         alert.setContentText(e.getMessage());
         alert.showAndWait();
+    }
+
+    /**
+     * Stops what the application started in the background, such as its
+     * own Ollama, when the window closes.
+     */
+    @Override
+    public void stop() {
+        if (controller != null) {
+            controller.shutdown();
+        }
     }
 
     /**

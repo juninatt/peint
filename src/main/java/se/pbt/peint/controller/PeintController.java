@@ -1,6 +1,7 @@
 package se.pbt.peint.controller;
 
 import javafx.beans.binding.Bindings;
+import javafx.application.Platform;
 import javafx.concurrent.Task;
 import javafx.embed.swing.SwingFXUtils;
 import javafx.fxml.FXML;
@@ -16,6 +17,7 @@ import javafx.scene.control.ColorPicker;
 import javafx.scene.control.Dialog;
 import javafx.scene.control.Label;
 import javafx.scene.control.MenuItem;
+import javafx.scene.control.ProgressBar;
 import javafx.scene.control.ProgressIndicator;
 import javafx.scene.control.Slider;
 import javafx.scene.control.TextArea;
@@ -35,10 +37,13 @@ import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.stage.FileChooser;
 import se.pbt.peint.ai.AiSettings;
+import se.pbt.peint.ai.AiSetup;
 import se.pbt.peint.ai.Description;
 import se.pbt.peint.ai.DrawingDescriber;
 import se.pbt.peint.ai.OllamaClient;
 import se.pbt.peint.ai.OllamaException;
+import se.pbt.peint.ai.OllamaInstaller;
+import se.pbt.peint.ai.OllamaServer;
 import se.pbt.peint.ai.SceneDrawer;
 import se.pbt.peint.canvas.BrushTool;
 import se.pbt.peint.canvas.CanvasManager;
@@ -46,6 +51,7 @@ import se.pbt.peint.canvas.EraserTool;
 import se.pbt.peint.canvas.FillTool;
 import se.pbt.peint.canvas.FloodFillProcessor;
 import se.pbt.peint.canvas.Tool;
+import se.pbt.peint.support.AppDirectories;
 import se.pbt.peint.support.BackgroundTasks;
 import se.pbt.peint.svg.SvgImage;
 import se.pbt.peint.support.ImageFileService;
@@ -53,9 +59,13 @@ import se.pbt.peint.support.ImageFileService;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
+import java.net.URI;
+import java.nio.file.Path;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Consumer;
 import java.util.function.DoubleConsumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -150,6 +160,12 @@ public class PeintController {
     AiSettings aiSettings = AiSettings.DEFAULTS;
     OllamaClient ollama = new OllamaClient(aiSettings.address());
     String model = aiSettings.model();
+
+    // Finds or sets up a working Ollama for the AI menu; see withAi().
+    AiSetup aiSetup;
+
+    // The Ollama Peint started itself, if any, stopped when Peint quits.
+    private OllamaServer ollamaServer;
 
     // The scene the user last asked the model to draw, offered again next time.
     String lastScene = "";
@@ -396,32 +412,16 @@ public class PeintController {
     }
 
     /**
-     * Checks in the background whether Ollama runs, and disables
-     * <em>Describe Drawing</em> if it doesn't. Called each time the AI menu
-     * opens, so starting Ollama while Peint runs makes the item available.
-     */
-    @FXML
-    void onAiMenuShowing() {
-        Task<Boolean> check = new Task<>() {
-            @Override
-            protected Boolean call() {
-                return ollama.isAvailable();
-            }
-        };
-        check.setOnSucceeded(event -> {
-            describeItem.setDisable(!check.getValue());
-            drawItem.setDisable(!check.getValue());
-        });
-        BackgroundTasks.run(check, "peint-ollama-check");
-    }
-
-    /**
      * Asks the model for a title and a description of the drawing, showing
      * progress, which can be cancelled, while it thinks, and the answer once
      * it has one.
      */
     @FXML
     void onDescribe() {
+        withAi(this::describeDrawing);
+    }
+
+    private void describeDrawing() {
         // Snapshotting the canvas must happen on the FX Application Thread;
         // only asking the model is moved to a background thread.
         WritableImage snapshot = new WritableImage((int) canvas.getWidth(), (int) canvas.getHeight());
@@ -469,9 +469,12 @@ public class PeintController {
             return;
         }
         lastScene = scene.get().strip();
-
-        SceneDrawer drawer = new SceneDrawer(ollama, model);
         String toDraw = lastScene;
+        withAi(() -> drawScene(toDraw));
+    }
+
+    private void drawScene(String toDraw) {
+        SceneDrawer drawer = new SceneDrawer(ollama, model);
         Task<SvgImage> drawTask = new Task<>() {
             @Override
             protected SvgImage call() throws IOException, InterruptedException {
@@ -531,6 +534,190 @@ public class PeintController {
         aiSettings = settings;
         ollama = new OllamaClient(settings.address());
         model = settings.model();
+        Path dataDirectory = AppDirectories.data();
+        aiSetup = new AiSetup(settings, AiSetup.installedPrograms(),
+                OllamaInstaller.forThisComputer().map(download -> new OllamaInstaller(dataDirectory, download)),
+                program -> startOllama(program, dataDirectory.resolve("logs").resolve("ollama.log")));
+    }
+
+    /**
+     * Starts an Ollama of Peint's own in the background, or reuses the one
+     * already started, which keeps its port.
+     */
+    private URI startOllama(Path program, Path log) throws IOException, InterruptedException {
+        if (ollamaServer == null || !ollamaServer.isRunning()) {
+            ollamaServer = OllamaServer.start(program, log);
+        }
+        return ollamaServer.address();
+    }
+
+    /**
+     * Stops the Ollama Peint started, if any. Called when Peint quits.
+     */
+    public void shutdown() {
+        if (ollamaServer != null) {
+            ollamaServer.close();
+        }
+    }
+
+    /**
+     * Runs an AI action once Ollama is ready, getting it ready first if
+     * needed: starting an Ollama that's on this computer straight away, and
+     * asking before downloading Ollama or a model.
+     */
+    void withAi(Runnable action) {
+        AiSetup setup = aiSetup;
+        Task<AiSetup.State> check = new Task<>() {
+            @Override
+            protected AiSetup.State call() throws IOException, InterruptedException {
+                return setup.check();
+            }
+        };
+        check.setOnSucceeded(event -> continueWithAi(setup, check.getValue(), action));
+        check.setOnFailed(event -> showError("AI isn't available", explainOllamaFailure(check.getException())));
+        BackgroundTasks.run(check, "peint-ai-check");
+    }
+
+    private void continueWithAi(AiSetup setup, AiSetup.State state, Runnable action) {
+        switch (state) {
+            case AiSetup.State.Ready(URI address) -> {
+                ollama = new OllamaClient(address);
+                action.run();
+            }
+            case AiSetup.State.CanStart _ -> runSetupStep("Starting the AI\u2026", setup::start,
+                    started -> continueWithAi(setup, started, action));
+            case AiSetup.State.ModelMissing _, AiSetup.State.NeedsDownload _ -> {
+                // Something large must be downloaded: only with the user's go-ahead.
+                if (confirmAiSetup(state)) {
+                    runSetupStep("Setting up the AI\u2026", () -> new AiSetup.State.Ready(setup.prepare(this::reportSetup)),
+                            ready -> continueWithAi(setup, ready, action));
+                }
+            }
+            case AiSetup.State.Unreachable(URI address) -> showError("AI isn't available",
+                    "Ollama doesn't answer at " + address + ". Start it there, or change the address in AI Settings.");
+            case AiSetup.State.Unsupported _ -> showError("AI isn't available",
+                    "Peint can't download Ollama for this computer. Install it from https://ollama.com, "
+                            + "for example with your package manager, and try again.");
+        }
+    }
+
+    // The progress shown while setting up, updated from the setup thread.
+    private SetupProgress setupProgress;
+
+    private void reportSetup(AiSetup.Progress progress) {
+        SetupProgress view = setupProgress;
+        if (view != null) {
+            Platform.runLater(() -> view.update(progress));
+        }
+    }
+
+    /**
+     * Runs one step of setting up AI in the background, showing its progress
+     * with a button to cancel it, and continues with its result.
+     */
+    private void runSetupStep(String header, SetupStep step, Consumer<AiSetup.State> then) {
+        Task<AiSetup.State> task = new Task<>() {
+            @Override
+            protected AiSetup.State call() throws IOException, InterruptedException {
+                return step.run();
+            }
+        };
+        SetupProgress view = showSetupProgress(header, () -> task.cancel(true));
+        setupProgress = view;
+        task.setOnSucceeded(event -> {
+            view.close();
+            then.accept(task.getValue());
+        });
+        task.setOnFailed(event -> {
+            view.close();
+            LOGGER.log(Level.WARNING, "Failed to set up the AI", task.getException());
+            showError("Could not set up the AI", explainOllamaFailure(task.getException()));
+        });
+        task.setOnCancelled(event -> view.close());
+        BackgroundTasks.run(task, "peint-ai-setup");
+    }
+
+    /** One step of setting up AI, run on a background thread. */
+    @FunctionalInterface
+    interface SetupStep {
+        AiSetup.State run() throws IOException, InterruptedException;
+    }
+
+    /** Shows how setting up AI is going. */
+    interface SetupProgress {
+        void update(AiSetup.Progress progress);
+
+        void close();
+    }
+
+    /**
+     * Asks before downloading what the AI needs, saying what and how much.
+     *
+     * @return whether to go ahead
+     */
+    boolean confirmAiSetup(AiSetup.State state) {
+        String modelSize = model.equals(AiSettings.DEFAULT_MODEL)
+                ? " (about " + formatSize(AiSetup.DEFAULT_MODEL_SIZE) + ")" : "";
+        String what = state instanceof AiSetup.State.NeedsDownload(long bytes)
+                ? "Peint will download Ollama (" + formatSize(bytes) + "), which runs the AI on your own computer, "
+                        + "and the model " + model + modelSize + "."
+                : "Peint will download the model " + model + modelSize + " to Ollama.";
+        ButtonType download = new ButtonType("Download", ButtonBar.ButtonData.OK_DONE);
+        Alert alert = new Alert(Alert.AlertType.CONFIRMATION,
+                what + " This happens once. Everything stays on your computer; nothing is sent anywhere.",
+                download, ButtonType.CANCEL);
+        alert.setTitle("Peint");
+        alert.setHeaderText("Set up the AI features?");
+        alert.initOwner(canvas.getScene().getWindow());
+        return alert.showAndWait().filter(download::equals).isPresent();
+    }
+
+    /**
+     * Shows a progress bar for setting up AI, with a button to cancel it.
+     */
+    SetupProgress showSetupProgress(String header, Runnable cancel) {
+        ProgressBar bar = new ProgressBar(ProgressBar.INDETERMINATE_PROGRESS);
+        bar.setPrefWidth(360);
+        Label step = new Label("Getting ready\u2026");
+        VBox content = new VBox(8, step, bar);
+
+        Alert progress = new Alert(Alert.AlertType.NONE, null, ButtonType.CANCEL);
+        progress.setTitle("Peint");
+        progress.setHeaderText(header);
+        progress.getDialogPane().setContent(content);
+        progress.initOwner(canvas.getScene().getWindow());
+        progress.resultProperty().addListener((observable, oldResult, newResult) -> {
+            if (newResult == ButtonType.CANCEL) {
+                cancel.run();
+            }
+        });
+        progress.show();
+        return new SetupProgress() {
+            @Override
+            public void update(AiSetup.Progress update) {
+                step.setText(update.fraction() >= 0
+                        ? update.step() + " \u2013 " + Math.round(update.fraction() * 100) + " %"
+                        : update.step() + "\u2026");
+                bar.setProgress(update.fraction() >= 0 ? update.fraction() : ProgressBar.INDETERMINATE_PROGRESS);
+            }
+
+            @Override
+            public void close() {
+                // Closing doesn't count as cancelling: the result is set first.
+                progress.setResult(ButtonType.OK);
+                progress.close();
+            }
+        };
+    }
+
+    /**
+     * Formats a size in bytes for people, e.g. "1.6 GB".
+     */
+    static String formatSize(long bytes) {
+        if (bytes >= 1_000_000_000L) {
+            return String.format(Locale.ROOT, "%.1f GB", bytes / 1e9);
+        }
+        return String.format(Locale.ROOT, "%d MB", Math.round(bytes / 1e6));
     }
 
     /**

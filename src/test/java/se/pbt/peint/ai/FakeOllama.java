@@ -116,7 +116,11 @@ public final class FakeOllama implements AutoCloseable {
         return List.copyOf(requests);
     }
 
-    /** Waits until a request to a path other than /api/version arrives. */
+    /**
+     * Waits until a request that does real work arrives, such as asking the
+     * model or downloading one; checks of whether Ollama runs and which
+     * models it has (/api/version, /api/tags) don't count.
+     */
     public void awaitRequest() throws InterruptedException {
         requestReceived.await();
     }
@@ -125,7 +129,7 @@ public final class FakeOllama implements AutoCloseable {
         String path = exchange.getRequestURI().getPath();
         String body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
         requests.add(new Request(exchange.getRequestMethod(), path, body));
-        if (!path.equals("/api/version")) {
+        if (!path.equals("/api/version") && !path.equals("/api/tags")) {
             requestReceived.countDown();
         }
 

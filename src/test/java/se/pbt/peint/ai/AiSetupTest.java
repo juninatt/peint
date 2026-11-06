@@ -138,6 +138,28 @@ class AiSetupTest {
     }
 
     @Test
+    void startStartsOllamaButLeavesAMissingModelForTheUserToDecide() throws Exception {
+        Path installed = installedProgram();
+        AiSetup setup = setup(defaultAddress, List.of(installed), Optional.empty());
+
+        AiSetup.State state = setup.start();
+
+        assertEquals(List.of(installed), started);
+        assertEquals(new AiSetup.State.ModelMissing(startedOllama.address()), state);
+        assertTrue(startedOllama.requests().stream().noneMatch(request -> request.path().equals("/api/pull")),
+                "nothing large should be downloaded without asking");
+    }
+
+    @Test
+    void startDoesNothingWhenOllamaMustBeDownloaded() throws Exception {
+        OllamaInstaller installer = installer();
+        AiSetup setup = setup(defaultAddress, List.of(), Optional.of(installer));
+
+        assertEquals(new AiSetup.State.NeedsDownload(installer.downloadSize()), setup.start());
+        assertTrue(started.isEmpty());
+    }
+
+    @Test
     void prepareSkipsTheModelWhenTheStartedOllamaHasIt() throws Exception {
         AiSetup setup = setup(defaultAddress, List.of(installedProgram()), Optional.empty(), WITH_MODEL);
 

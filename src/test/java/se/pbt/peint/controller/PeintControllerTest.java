@@ -33,6 +33,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import se.pbt.peint.FxTestSupport;
 import se.pbt.peint.ai.AiSettings;
+import se.pbt.peint.ai.AiSetup;
 import se.pbt.peint.ai.Description;
 import se.pbt.peint.ai.FakeOllama;
 import se.pbt.peint.ai.OllamaClient;
@@ -55,6 +56,7 @@ import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
@@ -93,6 +95,15 @@ class PeintControllerTest {
 
     // The scene the "what should the AI draw" dialog "returns", instead of opening it.
     private final AtomicReference<Optional<String>> answerForScene = new AtomicReference<>(Optional.empty());
+
+    // What the "set up the AI" question was asked about and answers, and
+    // what the setup progress showed, instead of opening dialogs.
+    private static final String MODELS_WITH_DEFAULT = "{\"models\":[{\"name\":\"qwen3.5:4b\"}]}";
+    private static final String MODELS_WITHOUT_DEFAULT = "{\"models\":[]}";
+    private final List<AiSetup.State> setupQuestions = new CopyOnWriteArrayList<>();
+    private final AtomicBoolean confirmSetup = new AtomicBoolean();
+    private final List<AiSetup.Progress> setupUpdates = new CopyOnWriteArrayList<>();
+    private final AtomicInteger setupClosed = new AtomicInteger();
 
     // The settings the AI settings dialog "returns", instead of opening it.
     private final AtomicReference<Optional<AiSettings>> answerForAiSettings = new AtomicReference<>(Optional.empty());
@@ -140,6 +151,27 @@ class PeintControllerTest {
                 @Override
                 Optional<String> askForScene(String current) {
                     return answerForScene.get();
+                }
+
+                @Override
+                boolean confirmAiSetup(AiSetup.State state) {
+                    setupQuestions.add(state);
+                    return confirmSetup.get();
+                }
+
+                @Override
+                SetupProgress showSetupProgress(String header, Runnable cancel) {
+                    return new SetupProgress() {
+                        @Override
+                        public void update(AiSetup.Progress progress) {
+                            setupUpdates.add(progress);
+                        }
+
+                        @Override
+                        public void close() {
+                            setupClosed.incrementAndGet();
+                        }
+                    };
                 }
             };
             controller.preferences = preferences;
@@ -484,14 +516,56 @@ class PeintControllerTest {
     }
 
     @Test
-    void onDescribeExplainsWhenOllamaIsNotRunning() throws Exception {
-        controller.ollama = new OllamaClient(URI.create("http://127.0.0.1:" + freePort()));
+    void onDescribeExplainsWhenTheChosenOllamaDoesntAnswer() throws Exception {
+        URI nowhere = URI.create("http://127.0.0.1:" + freePort());
+        useAiAt(nowhere);
 
         FxTestSupport.runAndWait(() -> controller.onDescribe());
 
-        assertErrorReported("Could not describe the drawing");
-        assertTrue(reportedErrorDetails.getFirst().contains("Make sure Ollama is installed and running"),
+        assertErrorReported("AI isn't available");
+        assertTrue(reportedErrorDetails.getFirst().contains("Ollama doesn't answer at " + nowhere),
                 reportedErrorDetails.getFirst());
+        assertEquals(0, progressShown.get(), "nothing should be started");
+    }
+
+    @Test
+    void aMissingModelIsOnlyDownloadedAfterAsking() throws Exception {
+        useFakeOllama(MODELS_WITHOUT_DEFAULT);
+        confirmSetup.set(false);
+
+        FxTestSupport.runAndWait(() -> controller.onDescribe());
+
+        awaitCondition(() -> setupQuestions.size() == 1, "the user should be asked first");
+        assertInstanceOf(AiSetup.State.ModelMissing.class, setupQuestions.getFirst());
+        Thread.sleep(300);
+        assertTrue(ollama.requests().stream().noneMatch(request -> request.path().equals("/api/pull")),
+                "nothing should be downloaded after declining");
+        assertTrue(shownDescriptions.isEmpty());
+    }
+
+    @Test
+    void anAcceptedSetupDownloadsTheModelAndThenDescribes() throws Exception {
+        useFakeOllama(MODELS_WITHOUT_DEFAULT)
+                .answerStreamed("/api/pull", 0,
+                        "{\"status\":\"pulling aaa\",\"digest\":\"sha256:aaa\",\"total\":100,\"completed\":50}",
+                        "{\"status\":\"success\"}")
+                .answer("/api/generate", 200,
+                        "{\"response\": \"{\\\"title\\\": \\\"Sunny House\\\", \\\"description\\\": \\\"d\\\"}\"}");
+        confirmSetup.set(true);
+
+        FxTestSupport.runAndWait(() -> controller.onDescribe());
+
+        assertTrue(descriptionShown.await(TIMEOUT_SECONDS, TimeUnit.SECONDS), "the drawing should be described after setup");
+        assertTrue(ollama.requests().stream().anyMatch(request -> request.path().equals("/api/pull")));
+        assertTrue(setupUpdates.stream().anyMatch(update -> update.step().startsWith("Downloading the model")
+                && update.fraction() == 0.5), "download progress should be shown: " + setupUpdates);
+        awaitCondition(() -> setupClosed.get() == 1, "the setup progress should close");
+    }
+
+    @Test
+    void sizesAreFormattedForPeople() {
+        assertEquals("1.6 GB", PeintController.formatSize(1_614_941_966L));
+        assertEquals("186 MB", PeintController.formatSize(185_971_671L));
     }
 
     @Test
@@ -508,34 +582,33 @@ class PeintControllerTest {
         assertTrue(reportedErrors.isEmpty(), "cancelling isn't an error");
     }
 
-    @Test
-    void theAiMenuDisablesDescribeWhileOllamaIsNotRunning() throws Exception {
-        controller.ollama = new OllamaClient(URI.create("http://127.0.0.1:" + freePort()));
-
-        FxTestSupport.runAndWait(() -> controller.onAiMenuShowing());
-
-        awaitCondition(() -> controller.describeItem.isDisable(), "Describe Drawing should be disabled");
-        awaitCondition(() -> controller.drawItem.isDisable(), "Draw from Description should be disabled");
-    }
-
-    @Test
-    void theAiMenuEnablesDescribeOnceOllamaRuns() throws Exception {
-        FxTestSupport.runAndWait(() -> controller.describeItem.setDisable(true));
-        useFakeOllama();
-
-        FxTestSupport.runAndWait(() -> controller.onAiMenuShowing());
-
-        awaitCondition(() -> !controller.describeItem.isDisable(), "Describe Drawing should be enabled again");
-        awaitCondition(() -> !controller.drawItem.isDisable(), "Draw from Description should be enabled again");
-    }
-
     /**
      * Points the controller at a fake Ollama server, stopped after the test.
      */
     private FakeOllama useFakeOllama() throws IOException {
-        ollama = new FakeOllama();
-        controller.ollama = new OllamaClient(ollama.address());
+        return useFakeOllama(MODELS_WITH_DEFAULT);
+    }
+
+    /**
+     * Points the controller at a fake Ollama server with the given models,
+     * stopped after the test.
+     */
+    private FakeOllama useFakeOllama(String models) throws IOException {
+        ollama = new FakeOllama().answer("/api/tags", 200, models);
+        useAiAt(ollama.address());
         return ollama;
+    }
+
+    /**
+     * Sets the AI up for the given address, which isn't the default one, so
+     * nothing is ever started or downloaded on this computer.
+     */
+    private void useAiAt(URI address) {
+        controller.ollama = new OllamaClient(address);
+        controller.aiSetup = new AiSetup(new AiSettings(address, AiSettings.DEFAULT_MODEL), List.of(), Optional.empty(),
+                program -> {
+                    throw new AssertionError("tests shouldn't start Ollama");
+                });
     }
 
     @AfterEach

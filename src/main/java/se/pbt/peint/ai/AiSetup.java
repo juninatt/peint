@@ -127,6 +127,27 @@ public final class AiSetup {
     }
 
     /**
+     * Starts an Ollama that is on this computer but not running, without
+     * downloading anything. Blocks until it answers, so call it from a
+     * background thread.
+     *
+     * @return the state afterwards: ready, or with the model still missing,
+     *         so the user can be asked before a large download; any other
+     *         state is returned as it is, with nothing started
+     * @throws IOException if Ollama can't be started
+     * @throws InterruptedException if the calling thread is interrupted
+     */
+    public State start() throws IOException, InterruptedException {
+        State state = check();
+        if (state instanceof State.CanStart(Path program)) {
+            startedAddress = starter.start(program);
+            return new OllamaClient(startedAddress).hasModel(settings.model())
+                    ? new State.Ready(startedAddress) : new State.ModelMissing(startedAddress);
+        }
+        return state;
+    }
+
+    /**
      * Does whatever is missing: downloads and starts Ollama, and downloads
      * the model. Blocks until done, so call it from a background thread.
      *
