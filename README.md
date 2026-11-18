@@ -24,14 +24,13 @@ Peint is a simple paint application built in JavaFX, inspired by classic Paint t
 
 
 ## AI Features
-The AI menu uses [Ollama](https://ollama.com) on your own computer: nothing is sent anywhere else, and no account or API key is needed. Everything else in Peint works without it.
+The AI menu uses [Ollama](https://ollama.com) on your own computer: nothing is sent anywhere else, and no account or API key is needed. Everything else in Peint works without it, and nothing needs installing by hand:
 
-1. Install Ollama and start it.
-2. Download a model that can see images, for example the default one:
-   ```
-   ollama pull qwen3.5:4b
-   ```
-3. In Peint, choose *AI → Describe Drawing* (Ctrl+D) or *AI → Draw from Description* (Ctrl+Shift+D).
+- The first time you choose something in the AI menu, Peint offers to download what's missing and shows how large it is: on Windows, Ollama (1.6 GB) and the default model, qwen3.5:4b (about 3.3 GB); on macOS, Ollama is 186 MB. This happens once.
+- Peint runs its own Ollama in the background while it's open, and stops it when you close Peint.
+- If Ollama is already installed or running, Peint uses it instead, and models are shared with it.
+
+Peint checks every Ollama download against a checksum built into Peint, so only the exact version it was tested with is run. On Linux, install Ollama with your package manager or from ollama.com; Peint then finds it and downloads the model.
 
 A different model or a different Ollama server, for instance one on a computer with a graphics card, can be chosen in *AI → AI Settings*. On a laptop CPU the default model takes about half a minute to a minute to describe a drawing, and one to three minutes to draw a scene; a graphics card makes it many times faster.
 
